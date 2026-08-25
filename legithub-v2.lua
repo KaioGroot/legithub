@@ -1872,12 +1872,19 @@ Connect(UserInputService.JumpRequest, function()
 	end
 end)
 
+-- Forward declarations for fly/invis/hitbox/reach/copytools exports
+local StopFly
+local invisActive
+local IyTurnVisible, IyStartInvisibility
+local StopHitbox, StopReach
+
+;(function()
 Flags.Fly = false
 Flags.FlySpeed = 50
 
 local flyObjects = nil
 
-local function StopFly()
+StopFly = function()
 	if flyObjects then
 		pcall(function() flyObjects.bv:Destroy() end)
 		pcall(function() flyObjects.bg:Destroy() end)
@@ -1942,7 +1949,7 @@ Connect(RunService.Stepped, function()
 end)
 
 local invisBusy = false
-local invisActive = false
+invisActive = false
 local invisRealChar = nil
 local invisCloneChar = nil
 local invisConns = {}
@@ -2008,7 +2015,7 @@ local function IyForceRespawn()
 	SetInvisOption(false, true)
 end
 
-local function IyTurnVisible()
+IyTurnVisible = function()
 	if not invisActive then return end
 	local real = invisRealChar
 	local clone = invisCloneChar
@@ -2071,7 +2078,7 @@ local function IyTurnVisible()
 	end
 end
 
-local function IyStartInvisibility()
+IyStartInvisibility = function()
 	if invisBusy or invisActive then return false end
 	invisBusy = true
 
@@ -2312,7 +2319,7 @@ end
 
 local hitboxSaved = {}
 
-local function StopHitbox()
+StopHitbox = function()
 	Flags.Hitbox = false
 	for hrp, saved in pairs(hitboxSaved) do
 		pcall(function()
@@ -2390,7 +2397,7 @@ local function ApplyReach(handle)
 	end)
 end
 
-local function StopReach()
+StopReach = function()
 	Flags.Reach = false
 	for handle, saved in pairs(reachSaved) do
 		pcall(function()
@@ -2625,6 +2632,7 @@ local function CopyNearestTools()
 	end
 	CopyToolsFrom(target)
 end
+end)()
 
 Flags.ESP = false
 Flags.ESPBoxes = true
@@ -2649,8 +2657,17 @@ Flags.ESPVisibilityColor = false
 	Flags.AimbotFOVCircle = true
 	Flags.AimbotMode = "Sempre ativo"
 
+-- Forward declarations for shared feature variables (used by Unload & tab IIFEs)
+local HubAlive
+local AdmMon
+local spectTarget, StartSpectate, StopSpectate
+local Waypoints, wpEspBind, wpUIRefresh, WpForCurrentPlace, ClearWpDrawings
+local espCache, espSupported, RemoveEsp
+local fovDrawing, AIMBOT_RENDER
+
+;(function()
 	-- ============ Monitor de ADMs ============
-	local HubAlive = true
+	HubAlive = true
 	_G.LegitHubAlive = function() return HubAlive end
 
 	Flags.AdmMonitor = true
@@ -2661,7 +2678,7 @@ Flags.ESPVisibilityColor = false
 
 	local EspAdminColor = Color3.fromRGB(255, 70, 90)
 
-	local AdmMon = {
+	AdmMon = {
 		Info = {},
 		Custom = {},
 		OnUpdate = nil,
@@ -2789,12 +2806,12 @@ Flags.ESPVisibilityColor = false
 	_G.LegitHubScanAdmins = ScanAll
 
 	-- ============ Spectate ============
-	local spectTarget = nil
+	spectTarget = nil
 	local spectConn = nil
 	local spectLeaveConn = nil
 	local spectBar = nil
 	local spectNameLabel = nil
-	local StartSpectate, StopSpectate
+	-- StartSpectate, StopSpectate declared in outer scope
 	_G.LegitHubSpectating = function() return spectTarget end
 
 	local function EnsureSpectateBar()
@@ -3173,14 +3190,14 @@ Flags.ESPVisibilityColor = false
 	AdmMon.SetPanel = SetAdmPanel
 
 	-- ============ Waypoints ============
-	local Waypoints = {}
+	Waypoints = {}
 	local waypointDrawings = {}
-	local wpEspBind = "LegitHub_WaypointESP"
-	local wpUIRefresh = nil
+	wpEspBind = "LegitHub_WaypointESP"
+	wpUIRefresh = nil
 
 	Flags.WaypointESP = false
 
-	local function WpForCurrentPlace()
+	WpForCurrentPlace = function()
 		local out = {}
 		for i, wp in ipairs(Waypoints) do
 			if wp.pid == game.PlaceId then
@@ -3190,7 +3207,7 @@ Flags.ESPVisibilityColor = false
 		return out
 	end
 
-	local function ClearWpDrawings()
+	ClearWpDrawings = function()
 		for _, d in pairs(waypointDrawings) do
 			pcall(function() d:Remove() end)
 		end
@@ -3320,8 +3337,8 @@ Flags.ESPVisibilityColor = false
 	end)
 	-- ============ fim Monitor de ADMs ============
 
-local espCache = {}
-local espSupported = Drawing ~= nil
+espCache = {}
+espSupported = Drawing ~= nil
 local ESP_RENDER_NAME = "LegitHub_ESP"
 
 local function NewDrawing(class, props)
@@ -3411,7 +3428,7 @@ local function GetEspPool(player)
 	return pool
 end
 
-local function RemoveEsp(player)
+RemoveEsp = function(player)
 	local pool = espCache[player]
 	if not pool then return end
 	HideEsp(pool)
@@ -3639,7 +3656,7 @@ if espSupported then
 	end)
 end
 -- ============ Aimbot (v2 - otimizado, sem lag) ============
-local fovDrawing = nil
+fovDrawing = nil
 if Drawing then
 	pcall(function()
 		fovDrawing = Drawing.new("Circle")
@@ -3654,81 +3671,66 @@ if Drawing then
 	end)
 end
 
-local AIMBOT_RENDER = "LegitHub_Aimbot"
+AIMBOT_RENDER = "LegitHub_Aimbot"
 
-local aimbotRay = RaycastParams.new()
-aimbotRay.FilterType = Enum.RaycastFilterType.Exclude
-aimbotRay.IgnoreWater = true
-aimbotRay.RespectCanCollide = false
+local _abRayP = RaycastParams.new()
+_abRayP.FilterType = Enum.RaycastFilterType.Exclude
+_abRayP.IgnoreWater = true
 
 local _abTgt = nil
-local _abT = 0
+local _abTm = 0
 
-local function _AbPlayerok(p, myT, cT)
-	if p == LocalPlayer then return false end
-	if cT and myT and p.Team == myT then return false end
-	return true
-end
+local function _AbTick()
+	local now = os.clock()
+	if now - _abTm < 0.08 then return _abTgt end
+	_abTm = now
 
-local function _AbVisible(cp, pt, c)
-	if not Flags.AimbotVisCheck then return true end
-	local d = pt.Position - cp
-	if d.Magnitude <= 2 then return true end
-	aimbotRay.FilterDescendantsInstances = { LocalPlayer.Character, c }
-	local ht = workspace:Raycast(cp, d, aimbotRay)
-	return not ht or ht.Instance:IsDescendantOf(c)
-end
-
-local function FindBestTarget()
 	local cam = workspace.CurrentCamera
 	if not cam then return nil end
-	local now = os.clock()
-	if now - _abT < 0.08 then return _abTgt end
-	_abT = now
+	local cp = cam.CFrame.Position
 	local ctr = cam.ViewportSize / 2
 	local bst, bstD = nil, Flags.AimbotFOV + 1
 	local pp = Flags.AimbotPart
 	local myT = LocalPlayer.Team
-	local cT = Flags.AimbotTeamCheck
-	local cp = cam.CFrame.Position
+
 	for _, p in ipairs(Players:GetPlayers()) do
-		if _AbPlayerok(p, myT, cT) then
-			local c = p.Character
-			local h = c and c:FindFirstChildOfClass("Humanoid")
-			if h and h.Health > 0 then
-				local pt = c:FindFirstChild(pp)
-				if pt and _AbVisible(cp, pt, c) then
-					local sp, vs = cam:WorldToViewportPoint(pt.Position)
-					if vs and sp.Z > 0 then
-						local dd = (Vector2.new(sp.X, sp.Y) - ctr).Magnitude
-						if dd < bstD then bst, bstD = p, dd end
+		if p ~= LocalPlayer then
+			if not (Flags.AimbotTeamCheck and myT and p.Team == myT) then
+				local c = p.Character
+				if c then
+					local h = c:FindFirstChildOfClass("Humanoid")
+					local pt = c:FindFirstChild(pp)
+					if h and pt and h.Health > 0 then
+						local vis = true
+						if Flags.AimbotVisCheck then
+							local d = pt.Position - cp
+							if d.Magnitude > 2 then
+								_abRayP.FilterDescendantsInstances = { LocalPlayer.Character, c }
+								local ht = workspace:Raycast(cp, d, _abRayP)
+								if ht and not ht.Instance:IsDescendantOf(c) then vis = false end
+							end
+						end
+						if vis then
+							local sp, on = cam:WorldToViewportPoint(pt.Position)
+							if on and sp.Z > 0 then
+								local dd = (Vector2.new(sp.X, sp.Y) - ctr).Magnitude
+								if dd < bstD then bst, bstD = p, dd end
+							end
+						end
 					end
 				end
 			end
 		end
 	end
+
 	_abTgt = bst
 	return bst
-end
-
-local function _AbApply(cam, tgt)
-	local c = tgt.Character
-	if not c then return end
-	local pt = c:FindFirstChild(Flags.AimbotPart)
-	if not pt then return end
-	local mc = LocalPlayer.Character
-	local mr = mc and mc:FindFirstChild("HumanoidRootPart")
-	if not mr then return end
-	cam.CFrame = cam.CFrame:Lerp(
-		CFrame.lookAt(cam.CFrame.Position, pt.Position),
-		1 / math.clamp(Flags.AimbotSmooth, 1, 20)
-	)
 end
 
 pcall(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER) end)
 
 RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1, function()
-	local ok, err = pcall(function()
+	pcall(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 		if fovDrawing then
@@ -3741,17 +3743,29 @@ RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1,
 		end
 		if not Flags.Aimbot then return end
 		if Flags.AimbotMode == "Botao direito" then
-			local hk, hv = pcall(function()
+			local ok, held = pcall(function()
 				return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 			end)
-			if not (hk and hv) then return end
+			if not (ok and held) then return end
 		end
-		local tgt = FindBestTarget()
-		if tgt then _AbApply(cam, tgt) end
+		local tgt = _AbTick()
+		if not tgt then return end
+		local c = tgt.Character
+		if not c then return end
+		local pt = c:FindFirstChild(Flags.AimbotPart)
+		if not pt then return end
+		local mc = LocalPlayer.Character
+		local root = mc and mc:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		cam.CFrame = cam.CFrame:Lerp(
+			CFrame.lookAt(cam.CFrame.Position, pt.Position),
+			1 / math.clamp(Flags.AimbotSmooth, 1, 20)
+		)
 	end)
-	if not ok then warn("[LegitHub Aimbot] render error:", err) end
 end)
+end)()
 
+;(function()
 local mouse = LocalPlayer:GetMouse()
 
 local minimized = false
@@ -3919,7 +3933,8 @@ task.spawn(function()
 			elapsed = 0
 		end
 	end)
-	end)
+end)
+end)()
 
 ;(function()
 	local page = Pages["Player"]
@@ -4857,6 +4872,7 @@ end)()
 			Notify("Waypoints", "Marcadores visiveis no mapa.", "success")
 		end
 	end)
+end)
 end)()
 
 ;(function()
@@ -5532,7 +5548,7 @@ root.GroupTransparency = 1
 uiScale.Scale = 0.9
 
 -- ============ Splash screen ============
-do
+;(function()
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
@@ -5692,7 +5708,7 @@ task.delay(2.1, function()
 		Tween(blur, 0.6, { Size = 10 })
 	end)
 end)
-end
+end)()
 
 task.delay(0.15, function()
 	LoadConfig()
