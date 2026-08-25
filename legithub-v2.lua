@@ -844,6 +844,7 @@ for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Misc" }) do
 end
 
 -- ============ Busca de configuracoes ============
+do
 local searchPanel = Create("Frame", {
 	Name = "SearchResults",
 	Position = UDim2.new(0, 12, 0, 62),
@@ -1007,6 +1008,7 @@ searchBox.FocusLost:Connect(function(enterPressed)
 		PickSearchResult(currentResults[1])
 	end
 end)
+end
 
 local function SectionLabel(page, text)
 	local container = Create("Frame", {
@@ -3729,9 +3731,9 @@ task.spawn(function()
 			elapsed = 0
 		end
 	end)
-end)
+	end)
 
-do
+;(function()
 	local page = Pages["Player"]
 
 	SectionLabel(page, "Movimento")
@@ -4145,9 +4147,9 @@ do
 			StopSpectate()
 		end
 	end)
-end
+end)()
 
-do
+;(function()
 	local page = Pages["Visuals"]
 
 	SectionLabel(page, "Camera")
@@ -4245,9 +4247,9 @@ do
 	AddSlider(page, "ESPMaxDistance", "Alcance maximo", 100, 5000, 1000, function(v)
 		Flags.ESPMaxDistance = v
 	end, "m")
-end
+end)()
 
-do
+;(function()
 	local page = Pages["Mundo"]
 
 	SectionLabel(page, "Fisica")
@@ -4389,9 +4391,9 @@ do
 			Notify("Waypoints", "Marcadores visiveis no mapa.", "success")
 		end
 	end)
-end
+end)()
 
-do
+;(function()
 	local page = Pages["Misc"]
 
 	Paragraph(page, "Legit Hub " .. VERSION,
@@ -4940,7 +4942,7 @@ do
 	AddButton(page, "Descarregar Legit Hub", Theme.Danger, function()
 		_G.LegitHub.Unload()
 	end)
-end
+end)()
 
 for name in pairs(Pages) do
 	Pages[name].Button.MouseButton1Click:Connect(function()
@@ -5012,6 +5014,7 @@ root.GroupTransparency = 1
 uiScale.Scale = 0.9
 
 -- ============ Splash screen ============
+do
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
@@ -5171,6 +5174,7 @@ task.delay(2.1, function()
 		Tween(blur, 0.6, { Size = 10 })
 	end)
 end)
+end
 
 task.delay(0.15, function()
 	LoadConfig()
