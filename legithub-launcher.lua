@@ -17,6 +17,46 @@ local CACHE_FILE = "legithub_main.lua"
 
 _G.LegitHubUpdateURL = RAW_URL
 
+local Players = game:GetService("Players")
+
+-- Mostra erros fatais NA TELA (nao depende do console do executor).
+local function ShowFatal(msg)
+	msg = "[LegitHub] ERRO AO INICIAR\n\n" .. msg
+	print(msg)
+	pcall(function()
+		local pg = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+		if not pg then return end
+		local velho = pg:FindFirstChild("LegitHubFatal")
+		if velho then velho:Destroy() end
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "LegitHubFatal"
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 999999
+		gui.Parent = pg
+		local fundo = Instance.new("Frame")
+		fundo.Size = UDim2.fromOffset(680, 300)
+		fundo.Position = UDim2.new(0.5, -340, 0.5, -150)
+		fundo.BackgroundColor3 = Color3.fromRGB(18, 15, 19)
+		fundo.BorderSizePixel = 0
+		fundo.Parent = gui
+		local canto = Instance.new("UICorner")
+		canto.CornerRadius = UDim.new(0, 12)
+		canto.Parent = fundo
+		local texto = Instance.new("TextLabel")
+		texto.Size = UDim2.new(1, -28, 1, -24)
+		texto.Position = UDim2.fromOffset(14, 12)
+		texto.BackgroundTransparency = 1
+		texto.TextColor3 = Color3.fromRGB(255, 120, 130)
+		texto.TextSize = 13
+		texto.Font = Enum.Font.Code
+		texto.TextWrapped = true
+		texto.TextXAlignment = Enum.TextXAlignment.Left
+		texto.TextYAlignment = Enum.TextYAlignment.Top
+		texto.Text = msg
+		texto.Parent = fundo
+	end)
+end
+
 local function httpGet(url)
 	local ok, result = pcall(function()
 		return game:HttpGet(url, true)
@@ -72,7 +112,17 @@ local function runHub()
 	if not loader then
 		error("[LegitHub] Falha ao compilar o hub: " .. tostring(err), 0)
 	end
-	loader()
+	local okExec, errExec = xpcall(loader, function(e)
+		return debug.traceback(tostring(e), 2)
+	end)
+	if not okExec then
+		ShowFatal("O hub travou durante a execucao. Detalhes tecnicos:\n\n" .. tostring(errExec))
+	end
 end
 
-runHub()
+local okHub, errHub = xpcall(runHub, function(e)
+	return debug.traceback(tostring(e), 2)
+end)
+if not okHub then
+	ShowFatal(tostring(errHub))
+end
