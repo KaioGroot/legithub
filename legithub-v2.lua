@@ -1878,7 +1878,7 @@ local invisActive
 local IyTurnVisible, IyStartInvisibility
 local StopHitbox, StopReach
 
-;(function()
+(function()
 Flags.Fly = false
 Flags.FlySpeed = 50
 
@@ -2665,7 +2665,7 @@ local Waypoints, wpEspBind, wpUIRefresh, WpForCurrentPlace, ClearWpDrawings
 local espCache, espSupported, RemoveEsp
 local fovDrawing, AIMBOT_RENDER
 
-;(function()
+(function()
 	-- ============ Monitor de ADMs ============
 	HubAlive = true
 	_G.LegitHubAlive = function() return HubAlive end
@@ -3765,7 +3765,7 @@ RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1,
 end)
 end)()
 
-;(function()
+(function()
 local mouse = LocalPlayer:GetMouse()
 
 local minimized = false
@@ -3936,7 +3936,7 @@ task.spawn(function()
 end)
 end)()
 
-;(function()
+(function()
 	local page = Pages["Player"]
 
 	SectionLabel(page, "Movimento")
@@ -4630,7 +4630,7 @@ end)()
 	UpdateAvatarCard(nil)
 end)()
 
-;(function()
+(function()
 	local page = Pages["Visuals"]
 
 	SectionLabel(page, "Camera")
@@ -4730,7 +4730,7 @@ end)()
 	end, "m")
 end)()
 
-;(function()
+(function()
 	local page = Pages["Mundo"]
 
 	SectionLabel(page, "Fisica")
@@ -4875,7 +4875,7 @@ end)()
 end)
 end)()
 
-;(function()
+(function()
 	local page = Pages["Misc"]
 
 	Paragraph(page, "Legit Hub " .. VERSION,
@@ -5548,7 +5548,7 @@ root.GroupTransparency = 1
 uiScale.Scale = 0.9
 
 -- ============ Splash screen ============
-;(function()
+(function()
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
