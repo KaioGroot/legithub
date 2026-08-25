@@ -963,7 +963,6 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Top,
-		ZIndex = 41,
 	}, searchPanel)
 
 	if #currentResults == 0 then
