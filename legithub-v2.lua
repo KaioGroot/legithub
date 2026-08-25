@@ -1878,7 +1878,7 @@ local invisActive
 local IyTurnVisible, IyStartInvisibility
 local StopHitbox, StopReach
 
-;(function()
+local function _iife_fly()
 Flags.Fly = false
 Flags.FlySpeed = 50
 
@@ -2632,7 +2632,8 @@ local function CopyNearestTools()
 	end
 	CopyToolsFrom(target)
 end
-end)()
+end
+_iife_fly()
 
 Flags.ESP = false
 Flags.ESPBoxes = true
@@ -2665,7 +2666,7 @@ local Waypoints, wpEspBind, wpUIRefresh, WpForCurrentPlace, ClearWpDrawings
 local espCache, espSupported, RemoveEsp
 local fovDrawing, AIMBOT_RENDER
 
-;(function()
+local function _iife_adm()
 	-- ============ Monitor de ADMs ============
 	HubAlive = true
 	_G.LegitHubAlive = function() return HubAlive end
@@ -3763,9 +3764,10 @@ RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1,
 		)
 	end)
 end)
-end)()
+end
+_iife_adm()
 
-;(function()
+local function _iife_gui()
 local mouse = LocalPlayer:GetMouse()
 
 local minimized = false
@@ -3934,9 +3936,10 @@ task.spawn(function()
 		end
 	end)
 end)
-end)()
+end
+_iife_gui()
 
-;(function()
+local function _iife_player()
 	local page = Pages["Player"]
 
 	SectionLabel(page, "Movimento")
@@ -4628,9 +4631,10 @@ end)()
 		end
 	end
 	UpdateAvatarCard(nil)
-end)()
+end
+_iife_player()
 
-;(function()
+local function _iife_visuals()
 	local page = Pages["Visuals"]
 
 	SectionLabel(page, "Camera")
@@ -4728,9 +4732,10 @@ end)()
 	AddSlider(page, "ESPMaxDistance", "Alcance maximo", 100, 5000, 1000, function(v)
 		Flags.ESPMaxDistance = v
 	end, "m")
-end)()
+end
+_iife_visuals()
 
-;(function()
+local function _iife_mundo()
 	local page = Pages["Mundo"]
 
 	SectionLabel(page, "Fisica")
@@ -4873,9 +4878,10 @@ end)()
 		end
 	end)
 end)
-end)()
+end
+_iife_mundo()
 
-;(function()
+local function _iife_misc()
 	local page = Pages["Misc"]
 
 	Paragraph(page, "Legit Hub " .. VERSION,
@@ -5468,7 +5474,8 @@ end)()
 
 	Paragraph(page, "Dica do Aimbot",
 		"Ajuste a suavidade para mirar de forma mais natural (1 = snap instantaneo, 20 = muito lento). Use o modo 'Botao direito' para mirar so quando segurar RMB. 'Head' e a parte mais precisa, 'HumanoidRootPart' e mais estavel.")
-end)()
+end
+_iife_misc()
 
 for name in pairs(Pages) do
 	Pages[name].Button.MouseButton1Click:Connect(function()
@@ -5548,7 +5555,7 @@ root.GroupTransparency = 1
 uiScale.Scale = 0.9
 
 -- ============ Splash screen ============
-;(function()
+local function _iife_splash()
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
@@ -5708,7 +5715,8 @@ task.delay(2.1, function()
 		Tween(blur, 0.6, { Size = 10 })
 	end)
 end)
-end)()
+end
+_iife_splash()
 
 task.delay(0.15, function()
 	LoadConfig()
