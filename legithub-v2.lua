@@ -3656,51 +3656,15 @@ end
 
 local AIMBOT_RENDER = "LegitHub_Aimbot"
 
-local aimbotRayParams = RaycastParams.new()
-aimbotRayParams.FilterType = Enum.RaycastFilterType.Exclude
-aimbotRayParams.IgnoreWater = true
-aimbotRayParams.RespectCanCollide = false
+local aimbotRay = RaycastParams.new()
+aimbotRay.FilterType = Enum.RaycastFilterType.Exclude
+aimbotRay.IgnoreWater = true
+aimbotRay.RespectCanCollide = false
 
-local aimbotCache = {
-	target = nil,
-	lastFindTime = 0,
-	findInterval = 0.08,
-	camPos = Vector3.zero,
-	viewportCenter = Vector2.zero,
-	fovRadius = 150,
-}
+local _abCache = { tgt = nil, t = 0, iv = 0.08 }
 
-local function RebuildRayFilter(char)
-	local filter = { LocalPlayer.Character }
-	if char then
-		table.insert(filter, char)
-	end
-	aimbotRayParams.FilterDescendantsInstances = filter
-end
-
-local function IsAlive(char, humanoid)
-	if not char or not humanoid then return false end
-	if humanoid.Health <= 0 then return false end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	if not root then return false end
-	return true
-end
-
-local function IsTeamMate(plr)
-	if not Flags.AimbotTeamCheck then return false end
-	local myTeam = LocalPlayer.Team
-	if not myTeam then return false end
-	return plr.Team == myTeam
-end
-
-local function IsVisible(camPos, targetPart, targetChar)
-	if not Flags.AimbotVisCheck then return true end
-	local dir = targetPart.Position - camPos
-	if dir.Magnitude <= 2 then return true end
-
-	RebuildRayFilter(targetChar)
-	local hit = workspace:Raycast(camPos, dir, aimbotRayParams)
-	return not hit or hit.Instance:IsDescendantOf(targetChar)
+local function _abRay(char)
+	aimbotRay.FilterDescendantsInstances = { LocalPlayer.Character, char }
 end
 
 local function FindBestTarget()
@@ -3708,57 +3672,40 @@ local function FindBestTarget()
 	if not cam then return nil end
 
 	local now = os.clock()
-	if now - aimbotCache.lastFindTime < aimbotCache.findInterval then
-		return aimbotCache.target
-	end
-	aimbotCache.lastFindTime = now
+	if now - _abCache.t < _abCache.iv then return _abCache.tgt end
+	_abCache.t = now
 
-	local center = cam.ViewportSize / 2
-	aimbotCache.viewportCenter = center
-	aimbotCache.fovRadius = Flags.AimbotFOV
-	aimbotCache.camPos = cam.CFrame.Position
+	local ctr = cam.ViewportSize / 2
+	local mxR = Flags.AimbotFOV
+	local bst, bstD = nil, mxR + 1
+	local pp = Flags.AimbotPart
+	local myT = LocalPlayer.Team
+	local cT = Flags.AimbotTeamCheck
+	local cV = Flags.AimbotVisCheck
+	local cp = cam.CFrame.Position
 
-	local maxR = Flags.AimbotFOV
-	local best = nil
-	local bestDist = maxR + 1
-	local targetPartName = Flags.AimbotPart
-
-	local myChar = LocalPlayer.Character
-	local myTeam = LocalPlayer.Team
-	local checkTeam = Flags.AimbotTeamCheck
-	local checkVis = Flags.AimbotVisCheck
-	local camPos = aimbotCache.camPos
-
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer then
-			if checkTeam and myTeam and plr.Team == myTeam then
-			else
-				local ch = plr.Character
-				local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-				if hum and hum.Health > 0 then
-					local pt = ch:FindFirstChild(targetPartName)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then
+			if not (cT and myT and p.Team == myT) then
+				local c = p.Character
+				local h = c and c:FindFirstChildOfClass("Humanoid")
+				if h and h.Health > 0 then
+					local pt = c and c:FindFirstChild(pp)
 					if pt then
-						local skip = false
-
-						if checkVis then
-							local dir = pt.Position - camPos
-							if dir.Magnitude > 2 then
-								RebuildRayFilter(ch)
-								local hit = workspace:Raycast(camPos, dir, aimbotRayParams)
-								if hit and not hit.Instance:IsDescendantOf(ch) then
-									skip = true
-								end
+						local sk = false
+						if cV then
+							local d = pt.Position - cp
+							if d.Magnitude > 2 then
+								_abRay(c)
+								local ht = workspace:Raycast(cp, d, aimbotRay)
+								if ht and not ht.Instance:IsDescendantOf(c) then sk = true end
 							end
 						end
-
-						if not skip then
-							local sp, vis = cam:WorldToViewportPoint(pt.Position)
-							if vis and sp.Z > 0 then
-								local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-								if d < bestDist then
-									best = plr
-									bestDist = d
-								end
+						if not sk then
+							local sp, vs = cam:WorldToViewportPoint(pt.Position)
+							if vs and sp.Z > 0 then
+								local dd = (Vector2.new(sp.X, sp.Y) - ctr).Magnitude
+								if dd < bstD then bst, bstD = p, dd end
 							end
 						end
 					end
@@ -3767,13 +3714,11 @@ local function FindBestTarget()
 		end
 	end
 
-	aimbotCache.target = best
-	return best
+	_abCache.tgt = bst
+	return bst
 end
 
-pcall(function()
-	RunService:UnbindFromRenderStep(AIMBOT_RENDER)
-end)
+pcall(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER) end)
 
 RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1, function()
 	local ok, err = pcall(function()
@@ -3792,31 +3737,29 @@ RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1,
 		if not Flags.Aimbot then return end
 
 		if Flags.AimbotMode == "Botao direito" then
-			local heldOk, held = pcall(function()
+			local hk, hv = pcall(function()
 				return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 			end)
-			if not (heldOk and held) then return end
+			if not (hk and hv) then return end
 		end
 
-		local target = FindBestTarget()
-		if not target then return end
-
-		local ch = target.Character
-		if not ch then return end
-		local pt = ch:FindFirstChild(Flags.AimbotPart)
+		local tgt = FindBestTarget()
+		if not tgt then return end
+		local c = tgt.Character
+		if not c then return end
+		local pt = c:FindFirstChild(Flags.AimbotPart)
 		if not pt then return end
+		local mc = LocalPlayer.Character
+		local mr = mc and mc:FindFirstChild("HumanoidRootPart")
+		if not mr then return end
 
-		local myChar = LocalPlayer.Character
-		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-		if not myRoot then return end
-
-		local aimCF = CFrame.lookAt(cam.CFrame.Position, pt.Position)
-		local s = math.clamp(Flags.AimbotSmooth, 1, 20)
-		cam.CFrame = cam.CFrame:Lerp(aimCF, 1 / s)
+		local sm = math.clamp(Flags.AimbotSmooth, 1, 20)
+		cam.CFrame = cam.CFrame:Lerp(
+			CFrame.lookAt(cam.CFrame.Position, pt.Position),
+			1 / sm
+		)
 	end)
-	if not ok then
-		warn("[LegitHub Aimbot] render error:", err)
-	end
+	if not ok then warn("[LegitHub Aimbot] render error:", err) end
 end)
 
 local mouse = LocalPlayer:GetMouse()
