@@ -665,6 +665,7 @@ local TAB_ICONS = {
 	Player = "🏃",
 	Visuals = "👁",
 	Mundo = "🌍",
+	Spy = "📡",
 	Misc = "🛠",
 }
 
@@ -841,7 +842,7 @@ local function SelectTab(name)
 	end)
 end
 
-for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Misc" }) do
+for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Spy", "Misc" }) do
 	MakePage(tabName, i)
 end
 
@@ -2665,6 +2666,167 @@ local spectTarget, StartSpectate, StopSpectate
 local Waypoints, wpEspBind, wpUIRefresh, WpForCurrentPlace, ClearWpDrawings
 local espCache, espSupported, RemoveEsp
 local fovDrawing, AIMBOT_RENDER
+
+-- ============ Remote Spy Engine ============
+Flags.RemoteSpy = false
+Flags.RemoteSpyMaxLogs = 200
+local RemoteSpyLogs = {}
+local RemoteSpyHooked = false
+local RemoteSpyOriginalNamecall = nil
+local RemoteSpyRefreshUI = nil
+
+local RS_TYPE_ICONS = {
+	FireServer = "📤",
+	InvokeServer = "📤",
+	FireClient = "📥",
+	InvokeClient = "📥",
+	FireAllClients = "📡",
+}
+
+local function RSSerializeArg(val, depth)
+	depth = depth or 0
+	if depth > 2 then return "..." end
+	local t = typeof(val)
+	if t == "Instance" then
+		return val.ClassName .. "(" .. val.Name .. ")"
+	elseif t == "Vector3" then
+		return "V3(" .. math.floor(val.X) .. "," .. math.floor(val.Y) .. "," .. math.floor(val.Z) .. ")"
+	elseif t == "CFrame" then
+		return "CF(...)"
+	elseif t == "Color3" then
+		return "C3(...)"
+	elseif t == "EnumItem" then
+		return tostring(val)
+	elseif t == "table" then
+		local parts = {}
+		local count = 0
+		for k, v in pairs(val) do
+			count += 1
+			if count > 6 then
+				table.insert(parts, "...")
+				break
+			end
+			table.insert(parts, tostring(k) .. "=" .. RSSerializeArg(v, depth + 1))
+		end
+		return "{" .. table.concat(parts, ", ") .. "}"
+	elseif t == "string" then
+		if #val > 40 then
+			return "\"" .. string.sub(val, 1, 37) .. "...\""
+		end
+		return "\"" .. val .. "\""
+	elseif t == "number" then
+		return tostring(math.floor(val * 1000 + 0.5) / 1000)
+	elseif t == "boolean" then
+		return val and "true" or "false"
+	else
+		return t
+	end
+end
+
+local function RSSerializeArgs(args)
+	if not args or #args == 0 then return "()" end
+	local parts = {}
+	for i, arg in ipairs(args) do
+		table.insert(parts, RSSerializeArg(arg))
+	end
+	return "(" .. table.concat(parts, ", ") .. ")"
+end
+
+local function RSLogEntry(remoteName, method, args)
+	if not Flags.RemoteSpy then return end
+	local entry = {
+		remote = remoteName,
+		method = method,
+		args = args,
+		argsStr = RSSerializeArgs(args),
+		time = os.clock(),
+	}
+	table.insert(RemoteSpyLogs, entry)
+	while #RemoteSpyLogs > Flags.RemoteSpyMaxLogs do
+		table.remove(RemoteSpyLogs, 1)
+	end
+	if RemoteSpyRefreshUI then
+		RemoteSpyRefreshUI()
+	end
+end
+
+local function RSIsRemote(obj)
+	if not obj then return false end
+	local ok, isRemote = pcall(function()
+		return obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")
+	end)
+	return ok and isRemote
+end
+
+local function RSStart()
+	if RemoteSpyHooked then return true end
+	if not hookmetamethod then
+		Notify("Remote Spy", "Este executor nao suporta hookmetamethod.", "danger")
+		return false
+	end
+
+	local ok, err = pcall(function()
+		RemoteSpyOriginalNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+			local method = getnamecallmethod()
+			local args = { ... }
+
+			if RSIsRemote(self) then
+				local remoteName = self.Name
+				if method == "FireServer" or method == "InvokeServer" then
+					pcall(function() RSLogEntry(remoteName, method, args) end)
+				elseif method == "FireClient" then
+					pcall(function() RSLogEntry(remoteName, method, args) end)
+				elseif method == "FireAllClients" then
+					pcall(function() RSLogEntry(remoteName, method, args) end)
+				end
+			end
+
+			if RemoteSpyOriginalNamecall then
+				return RemoteSpyOriginalNamecall(self, ...)
+			end
+		end))
+	end)
+
+	if not ok then
+		Notify("Remote Spy", "Falha ao instalar hook: " .. tostring(err), "danger")
+		return false
+	end
+
+	RemoteSpyHooked = true
+	return true
+end
+
+local function RSStop()
+	RemoteSpyHooked = false
+	if RemoteSpyOriginalNamecall and hookmetamethod then
+		pcall(function()
+			hookmetamethod(game, "__namecall", RemoteSpyOriginalNamecall)
+		end)
+		RemoteSpyOriginalNamecall = nil
+	end
+end
+
+local function RSClear()
+	table.clear(RemoteSpyLogs)
+	if RemoteSpyRefreshUI then
+		RemoteSpyRefreshUI()
+	end
+end
+
+local function RSCopyAll()
+	if not setclipboard then
+		Notify("Remote Spy", "setclipboard nao disponivel.", "danger")
+		return
+	end
+	local lines = {}
+	for _, entry in ipairs(RemoteSpyLogs) do
+		local ts = string.format("%.2f", entry.time)
+		table.insert(lines, "[" .. ts .. "] " .. entry.method .. " " .. entry.remote .. " " .. entry.argsStr)
+	end
+	setclipboard(table.concat(lines, "\n"))
+	Notify("Remote Spy", #lines .. " logs copiados.", "success")
+end
+-- ============ fim Remote Spy Engine ============
 
 local function _iife_adm()
 	-- ============ Monitor de ADMs ============
@@ -4880,6 +5042,522 @@ local function _iife_mundo()
 end
 _iife_mundo()
 
+local function _iife_spy()
+	local page = Pages["Spy"]
+
+	local rsSupported = hookmetamethod ~= nil
+	Flags.RemoteSpyAutoScroll = true
+	Flags.RemoteSpyFilter = ""
+
+	if not rsSupported then
+		Paragraph(page, "Remote Spy indisponivel",
+			"Seu executor nao suporta hookmetamethod. Atualize seu executor para usar o Remote Spy.")
+	end
+
+	SectionLabel(page, "Controle")
+
+	AddToggle(page, "RemoteSpy", "Ativar Remote Spy", false, function(state)
+		Flags.RemoteSpy = state
+		if state then
+			local ok = RSStart()
+			if ok then
+				Notify("Remote Spy", "Monitorando todas as chamadas de remote.", "success")
+			else
+				Flags.RemoteSpy = false
+				if Options["RemoteSpy"] then
+					Options["RemoteSpy"].Set(false, true)
+				end
+			end
+		else
+			RSStop()
+			Notify("Remote Spy", "Monitoramento pausado.", nil)
+		end
+	end)
+
+	AddToggle(page, "RemoteSpyAutoScroll", "Auto-scroll (seguir novos logs)", true, function(state)
+		Flags.RemoteSpyAutoScroll = state
+	end)
+
+	AddSlider(page, "RemoteSpyMaxLogs", "Maximo de logs", 50, 1000, 200, function(v)
+		Flags.RemoteSpyMaxLogs = v
+		while #RemoteSpyLogs > Flags.RemoteSpyMaxLogs do
+			table.remove(RemoteSpyLogs, 1)
+		end
+		if RemoteSpyRefreshUI then
+			RemoteSpyRefreshUI()
+		end
+	end)
+
+	SectionLabel(page, "Filtro")
+
+	local rsFilterHolder = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 38),
+		BackgroundColor3 = Theme.Card,
+		BorderSizePixel = 0,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+	Corner(rsFilterHolder, 9)
+
+	local rsFilterStroke = Outline(rsFilterHolder, Theme.Stroke, 0.5)
+
+	Create("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 0),
+		Size = UDim2.fromOffset(18, 38),
+		Font = Enum.Font.GothamBold,
+		Text = "🔍",
+		TextSize = 12,
+		TextColor3 = Theme.SubText,
+	}, rsFilterHolder)
+
+	local rsFilterInput = Create("TextBox", {
+		Position = UDim2.fromOffset(30, 0),
+		Size = UDim2.new(1, -38, 1, 0),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamMedium,
+		Text = "",
+		PlaceholderText = "Filtrar por nome do remote...",
+		PlaceholderColor3 = Theme.SubText,
+		TextColor3 = Theme.Text,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ClearTextOnFocus = false,
+	}, rsFilterHolder)
+
+	rsFilterInput.Focused:Connect(function()
+		Tween(rsFilterStroke, 0.15, { Color = Theme.Accent, Transparency = 0.15 })
+	end)
+	rsFilterInput.FocusLost:Connect(function()
+		Tween(rsFilterStroke, 0.2, { Color = Theme.Stroke, Transparency = 0.5 })
+	end)
+	rsFilterInput:GetPropertyChangedSignal("Text"):Connect(function()
+		Flags.RemoteSpyFilter = string.lower(rsFilterInput.Text)
+		if RemoteSpyRefreshUI then
+			RemoteSpyRefreshUI()
+		end
+	end)
+
+	SectionLabel(page, "Acoes")
+
+	local rsBtnRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 38),
+		BackgroundTransparency = 1,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+
+	local rsClearBtn = Create("TextButton", {
+		Size = UDim2.new(0.5, -4, 1, 0),
+		BackgroundColor3 = Theme.Danger,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamBold,
+		Text = "🗑  Limpar tudo",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 12,
+		AutoButtonColor = false,
+	}, rsBtnRow)
+	Corner(rsClearBtn, 8)
+
+	local rsCopyBtn = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(0.5, -4, 1, 0),
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamBold,
+		Text = "📋  Copiar todos",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 12,
+		AutoButtonColor = false,
+	}, rsBtnRow)
+	Corner(rsCopyBtn, 8)
+	AccentGradient(rsCopyBtn, 90)
+
+	for _, b in ipairs({ rsClearBtn, rsCopyBtn }) do
+		b.MouseEnter:Connect(function()
+			Tween(b, 0.12, { Size = b == rsClearBtn
+				and UDim2.new(0.5, -4, 1, 3) or UDim2.new(0.5, -4, 1, 3) })
+		end)
+		b.MouseLeave:Connect(function()
+			Tween(b, 0.12, { Size = UDim2.new(0.5, -4, 1, 0) })
+		end)
+	end
+
+	rsClearBtn.MouseButton1Click:Connect(function()
+		RSClear()
+		Notify("Remote Spy", "Todos os logs foram limpos.", "success")
+	end)
+
+	rsCopyBtn.MouseButton1Click:Connect(function()
+		RSCopyAll()
+	end)
+
+	SectionLabel(page, "Estatisticas")
+
+	local rsStatsHolder = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 50),
+		BackgroundColor3 = Theme.Card,
+		BorderSizePixel = 0,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+	Corner(rsStatsHolder, 10)
+	Outline(rsStatsHolder, Theme.Stroke, 0.55)
+
+	local rsStatTotal = Create("TextLabel", {
+		Position = UDim2.new(0, 14, 0, 6),
+		Size = UDim2.new(0.5, -20, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		Text = "Total: 0",
+		TextColor3 = Theme.SubText,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, rsStatsHolder)
+
+	local rsStatUnique = Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 6),
+		Size = UDim2.new(0.5, -20, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		Text = "Remotes unicos: 0",
+		TextColor3 = Theme.SubText,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	}, rsStatsHolder)
+
+	local rsStatServer = Create("TextLabel", {
+		Position = UDim2.new(0, 14, 0, 28),
+		Size = UDim2.new(0.5, -20, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "📤  Server: 0",
+		TextColor3 = Theme.Accent,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, rsStatsHolder)
+
+	local rsStatClient = Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 28),
+		Size = UDim2.new(0.5, -20, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "📥  Client: 0",
+		TextColor3 = Theme.Success,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	}, rsStatsHolder)
+
+	SectionLabel(page, "Logs")
+
+	local rsLogHolder = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 340),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+	Corner(rsLogHolder, 12)
+	Outline(rsLogHolder, Theme.Stroke, 0.45)
+
+	local rsLogHeader = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 32),
+		BackgroundColor3 = Theme.Card,
+		BorderSizePixel = 0,
+	}, rsLogHolder)
+	Corner(rsLogHeader, 12)
+
+	local rsHeaderDot = Create("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		Size = UDim2.fromOffset(8, 8),
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+	}, rsLogHeader)
+	Corner(rsHeaderDot, 4)
+
+	local rsHeaderStatus = Create("TextLabel", {
+		Position = UDim2.fromOffset(26, 0),
+		Size = UDim2.fromOffset(160, 32),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "📡  Logs em tempo real",
+		TextColor3 = Theme.Text,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, rsLogHeader)
+
+	rsCountLabel = Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(44, 22),
+		BackgroundColor3 = Theme.Background,
+		Font = Enum.Font.GothamBold,
+		Text = "0",
+		TextColor3 = Theme.Accent,
+		TextSize = 12,
+	}, rsLogHeader)
+	Corner(rsCountLabel, 7)
+	Outline(rsCountLabel, Theme.Stroke, 0.6)
+
+	task.spawn(function()
+		while screenGui.Parent do
+			if Flags.RemoteSpy then
+				Tween(rsHeaderDot, 0.8, { BackgroundTransparency = 0.6 }, Enum.EasingStyle.Sine)
+				Tween(rsHeaderStatus, 0.3, { Text = "📡  Gravando..." })
+				task.wait(0.8)
+				Tween(rsHeaderDot, 0.8, { BackgroundTransparency = 0 }, Enum.EasingStyle.Sine)
+				task.wait(0.8)
+			else
+				Tween(rsHeaderDot, 0.3, { BackgroundTransparency = 0.5 })
+				Tween(rsHeaderStatus, 0.3, { Text = "📡  Logs em tempo real" })
+				task.wait(1)
+			end
+		end
+	end)
+
+	local rsLogScroll = Create("ScrollingFrame", {
+		Position = UDim2.new(0, 0, 0, 32),
+		Size = UDim2.new(1, 0, 1, -32),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 3,
+		ScrollBarImageColor3 = Theme.Accent,
+		ScrollBarImageTransparency = 0.45,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	}, rsLogHolder)
+	Create("UIPadding", {
+		PaddingTop = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 6),
+		PaddingRight = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 6),
+	}, rsLogScroll)
+	Create("UIListLayout", {
+		Padding = UDim.new(0, 3),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, rsLogScroll)
+
+	local rsLogRows = {}
+
+	local function UpdateStats()
+		local total = #RemoteSpyLogs
+		local unique = {}
+		local serverCount = 0
+		local clientCount = 0
+		for _, entry in ipairs(RemoteSpyLogs) do
+			unique[entry.remote] = true
+			if string.find(entry.method, "Server", 1, true) then
+				serverCount += 1
+			else
+				clientCount += 1
+			end
+		end
+		local uniqueCount = 0
+		for _ in pairs(unique) do uniqueCount += 1 end
+
+		rsStatTotal.Text = "Total: " .. total
+		rsStatUnique.Text = "Remotes unicos: " .. uniqueCount
+		rsStatServer.Text = "📤  Server: " .. serverCount
+		rsStatClient.Text = "📥  Client: " .. clientCount
+	end
+
+	RemoteSpyRefreshUI = function()
+		for _, row in ipairs(rsLogRows) do
+			pcall(function() row:Destroy() end)
+		end
+		table.clear(rsLogRows)
+
+		rsCountLabel.Text = tostring(#RemoteSpyLogs)
+		UpdateStats()
+
+		if #RemoteSpyLogs == 0 then
+			local emptyIcon = Create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 30),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamBlack,
+				Text = "📡",
+				TextColor3 = Theme.SubText,
+				TextSize = 28,
+				LayoutOrder = 1,
+			}, rsLogScroll)
+
+			local emptyText = Create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 20),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamMedium,
+				Text = Flags.RemoteSpy and "Aguardando chamadas de remote..." or "Ative o Spy para comecar.",
+				TextColor3 = Theme.SubText,
+				TextSize = 13,
+				LayoutOrder = 2,
+			}, rsLogScroll)
+
+			local emptyHint = Create("TextLabel", {
+				Size = UDim2.new(1, -40, 0, 30),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Gotham,
+				Text = "Todas as chamadas de RemoteEvent e RemoteFunction serao capturadas aqui em tempo real.",
+				TextColor3 = Theme.SubText,
+				TextSize = 11,
+				TextWrapped = true,
+				LayoutOrder = 3,
+			}, rsLogScroll)
+
+			table.insert(rsLogRows, emptyIcon)
+			table.insert(rsLogRows, emptyText)
+			table.insert(rsLogRows, emptyHint)
+			return
+		end
+
+		local filter = Flags.RemoteSpyFilter
+		local filtered = {}
+		for _, entry in ipairs(RemoteSpyLogs) do
+			if filter == "" or string.find(string.lower(entry.remote), filter, 1, true) then
+				table.insert(filtered, entry)
+			end
+		end
+
+		if #filtered == 0 then
+			local noMatch = Create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 30),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamMedium,
+				Text = "Nenhum log corresponde ao filtro.",
+				TextColor3 = Theme.SubText,
+				TextSize = 12,
+				LayoutOrder = 1,
+			}, rsLogScroll)
+			table.insert(rsLogRows, noMatch)
+			return
+		end
+
+		local startIdx = math.max(1, #filtered - 100)
+		for i = startIdx, #filtered do
+			local entry = filtered[i]
+			local icon = RS_TYPE_ICONS[entry.method] or "?"
+
+			local row = Create("Frame", {
+				Size = UDim2.new(1, 0, 0, 28),
+				BackgroundColor3 = Theme.Card,
+				BackgroundTransparency = 0.35,
+				BorderSizePixel = 0,
+				LayoutOrder = i,
+			}, rsLogScroll)
+			Corner(row, 6)
+
+			local rowStroke = Outline(row, Theme.Stroke, 0.85)
+
+			Create("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(8, 0),
+				Size = UDim2.fromOffset(18, 28),
+				Font = Enum.Font.GothamBold,
+				Text = icon,
+				TextSize = 12,
+				TextColor3 = Theme.Text,
+			}, row)
+
+			local methodColor = Theme.SubText
+			if string.find(entry.method, "Server", 1, true) then
+				methodColor = Theme.Accent
+			elseif string.find(entry.method, "Client", 1, true) then
+				methodColor = Theme.Success
+			end
+
+			Create("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(28, 0),
+				Size = UDim2.fromOffset(96, 28),
+				Font = Enum.Font.GothamBold,
+				Text = entry.method,
+				TextColor3 = methodColor,
+				TextSize = 10,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, row)
+
+			Create("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(128, 0),
+				Size = UDim2.new(1, -310, 1, 0),
+				Font = Enum.Font.GothamMedium,
+				Text = entry.remote,
+				TextColor3 = Theme.Text,
+				TextSize = 11,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, row)
+
+			local argsText = entry.argsStr
+			if #argsText > 30 then
+				argsText = string.sub(argsText, 1, 27) .. "..."
+			end
+
+			Create("TextLabel", {
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -70, 0, 0),
+				Size = UDim2.fromOffset(130, 28),
+				Font = Enum.Font.Code,
+				Text = argsText,
+				TextColor3 = Theme.SubText,
+				TextSize = 9,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, row)
+
+			local idxLabel = Create("TextLabel", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -4, 0.5, 0),
+				Size = UDim2.fromOffset(0, 16),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Code,
+				Text = "#" .. i,
+				TextColor3 = Theme.SubText,
+				TextSize = 8,
+				TextXAlignment = Enum.TextXAlignment.Right,
+			}, row)
+
+			local clickBtn = Create("TextButton", {
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Text = "",
+				AutoButtonColor = false,
+			}, row)
+
+			clickBtn.MouseEnter:Connect(function()
+				Tween(row, 0.1, { BackgroundTransparency = 0 })
+				Tween(rowStroke, 0.1, { Transparency = 0.35 })
+				idxLabel.Text = "📋"
+				idxLabel.TextSize = 11
+			end)
+			clickBtn.MouseLeave:Connect(function()
+				Tween(row, 0.12, { BackgroundTransparency = 0.35 })
+				Tween(rowStroke, 0.12, { Transparency = 0.85 })
+				idxLabel.Text = "#" .. i
+				idxLabel.TextSize = 8
+			end)
+
+			clickBtn.MouseButton1Click:Connect(function()
+				if setclipboard then
+					local fullText = entry.method .. " " .. entry.remote .. " " .. entry.argsStr
+					setclipboard(fullText)
+					Notify("Remote Spy", "Copiado: " .. entry.method .. " " .. entry.remote, "success")
+				end
+			end)
+
+			table.insert(rsLogRows, row)
+		end
+
+		if Flags.RemoteSpyAutoScroll then
+			rsLogScroll.CanvasPosition = Vector2.new(0, rsLogScroll.AbsoluteCanvasSize.Y)
+		end
+	end
+
+	RemoteSpyRefreshUI()
+end
+_iife_spy()
+
 local function _iife_misc()
 	local page = Pages["Misc"]
 
@@ -5515,6 +6193,9 @@ local function Unload()
 	StopHitbox()
 	StopReach()
 	StopSpectate(true)
+	RSStop()
+	table.clear(RemoteSpyLogs)
+	Flags.RemoteSpy = false
 	Flags.Aimbot = false
 	pcall(function()
 		RunService:UnbindFromRenderStep(AIMBOT_RENDER)
