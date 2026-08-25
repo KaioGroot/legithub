@@ -662,7 +662,6 @@ local function Ripple(button, inputPos)
 end
 
 local TAB_ICONS = {
-	Aimbot = "🎯",
 	Player = "🏃",
 	Visuals = "👁",
 	Mundo = "🌍",
@@ -842,7 +841,7 @@ local function SelectTab(name)
 	end)
 end
 
-for i, tabName in ipairs({ "Aimbot", "Player", "Visuals", "Mundo", "Misc" }) do
+for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Misc" }) do
 	MakePage(tabName, i)
 end
 
@@ -4616,54 +4615,6 @@ task.spawn(function()
 end)()
 
 ;(function()
-	local page = Pages["Aimbot"]
-
-	SectionLabel(page, "Geral")
-
-	AddToggle(page, "Aimbot", "Aimbot (mirar automaticamente)", false, function(state)
-		Flags.Aimbot = state
-		if state then
-			Notify("Aimbot", "Aimbot ativado. Mire na direcao do alvo.", "success")
-		else
-			Notify("Aimbot", "Aimbot desativado.", nil)
-		end
-	end)
-
-	AddToggle(page, "AimbotFOVCircle", "Mostrar circulo FOV", true, function(state)
-		Flags.AimbotFOVCircle = state
-	end)
-
-	AddSlider(page, "AimbotFOV", "Raio do FOV", 50, 500, 150, function(v)
-		Flags.AimbotFOV = v
-	end)
-
-	AddSlider(page, "AimbotSmooth", "Suavidade", 1, 20, 5, function(v)
-		Flags.AimbotSmooth = v
-	end)
-
-	AddDropdown(page, "AimbotPart", "Parte do corpo", { "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, "Head", function(v)
-		Flags.AimbotPart = v
-	end)
-
-	AddDropdown(page, "AimbotMode", "Modo de ativacao", { "Sempre ativo", "Botao direito" }, "Sempre ativo", function(v)
-		Flags.AimbotMode = v
-	end)
-
-	SectionLabel(page, "Filtros")
-
-	AddToggle(page, "AimbotTeamCheck", "Ignorar aliados (mesmo time)", false, function(state)
-		Flags.AimbotTeamCheck = state
-	end)
-
-	AddToggle(page, "AimbotVisCheck", "So mira em alvos visiveis (sem parede)", true, function(state)
-		Flags.AimbotVisCheck = state
-	end)
-
-	Paragraph(page, "Dica",
-		"Ajuste a suavidade para mirar de forma mais natural (1 = snap instantaneo, 20 = muito lento). Use o modo 'Botao direito' para mirar so quando segurar RMB. 'Head' e a parte mais precisa, 'HumanoidRootPart' e mais estavel.")
-end)()
-
-;(function()
 	local page = Pages["Visuals"]
 
 	SectionLabel(page, "Camera")
@@ -5456,6 +5407,50 @@ end)()
 	AddButton(page, "Descarregar Legit Hub", Theme.Danger, function()
 		_G.LegitHub.Unload()
 	end)
+
+	SectionLabel(page, "Aimbot")
+
+	AddToggle(page, "Aimbot", "Aimbot (mirar automaticamente)", false, function(state)
+		Flags.Aimbot = state
+		if state then
+			Notify("Aimbot", "Aimbot ativado. Mire na direcao do alvo.", "success")
+		else
+			Notify("Aimbot", "Aimbot desativado.", nil)
+		end
+	end)
+
+	AddToggle(page, "AimbotFOVCircle", "Mostrar circulo FOV", true, function(state)
+		Flags.AimbotFOVCircle = state
+	end)
+
+	AddSlider(page, "AimbotFOV", "Raio do FOV", 50, 500, 150, function(v)
+		Flags.AimbotFOV = v
+	end)
+
+	AddSlider(page, "AimbotSmooth", "Suavidade", 1, 20, 5, function(v)
+		Flags.AimbotSmooth = v
+	end)
+
+	AddDropdown(page, "AimbotPart", "Parte do corpo", { "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, "Head", function(v)
+		Flags.AimbotPart = v
+	end)
+
+	AddDropdown(page, "AimbotMode", "Modo de ativacao", { "Sempre ativo", "Botao direito" }, "Sempre ativo", function(v)
+		Flags.AimbotMode = v
+	end)
+
+	SectionLabel(page, "Aimbot Filtros")
+
+	AddToggle(page, "AimbotTeamCheck", "Ignorar aliados (mesmo time)", false, function(state)
+		Flags.AimbotTeamCheck = state
+	end)
+
+	AddToggle(page, "AimbotVisCheck", "So mira em alvos visiveis (sem parede)", true, function(state)
+		Flags.AimbotVisCheck = state
+	end)
+
+	Paragraph(page, "Dica do Aimbot",
+		"Ajuste a suavidade para mirar de forma mais natural (1 = snap instantaneo, 20 = muito lento). Use o modo 'Botao direito' para mirar so quando segurar RMB. 'Head' e a parte mais precisa, 'HumanoidRootPart' e mais estavel.")
 end)()
 
 for name in pairs(Pages) do
