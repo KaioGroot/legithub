@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local TextService = game:GetService("TextService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -12,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v2.9"
+local VERSION = "v3.0"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -71,14 +72,15 @@ local function Outline(parent, color, transparency, thickness)
 end
 
 local Theme = {
-	Background = Color3.fromRGB(32, 28, 33),
-	Surface = Color3.fromRGB(41, 36, 43),
-	Card = Color3.fromRGB(53, 47, 56),
-	CardHover = Color3.fromRGB(67, 59, 71),
-	TrackOff = Color3.fromRGB(74, 65, 78),
-	Stroke = Color3.fromRGB(97, 87, 101),
-	Text = Color3.fromRGB(251, 248, 250),
-	SubText = Color3.fromRGB(189, 179, 193),
+	Background = Color3.fromRGB(23, 20, 26),
+	Surface = Color3.fromRGB(32, 28, 36),
+	Card = Color3.fromRGB(44, 39, 49),
+	CardHover = Color3.fromRGB(58, 51, 63),
+	CardActive = Color3.fromRGB(74, 65, 79),
+	TrackOff = Color3.fromRGB(63, 55, 68),
+	Stroke = Color3.fromRGB(255, 255, 255),
+	Text = Color3.fromRGB(248, 246, 251),
+	SubText = Color3.fromRGB(160, 151, 168),
 	Accent = Color3.fromRGB(255, 64, 84),
 	Accent2 = Color3.fromRGB(255, 138, 76),
 	Success = Color3.fromRGB(80, 220, 150),
@@ -232,11 +234,11 @@ local rootShadow = Create("ImageLabel", {
 	Name = "RootShadow",
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.new(1, 110, 1, 110),
+	Size = UDim2.new(1, 140, 1, 140),
 	BackgroundTransparency = 1,
 	Image = "rbxassetid://6014261993",
 	ImageColor3 = Color3.new(0, 0, 0),
-	ImageTransparency = 0.42,
+	ImageTransparency = 0.32,
 	ScaleType = Enum.ScaleType.Slice,
 	SliceCenter = Rect.new(49, 49, 450, 450),
 	ZIndex = 0,
@@ -1020,7 +1022,7 @@ local function SectionLabel(page, text)
 	local tick = Create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.fromOffset(3, 12),
+		Size = UDim2.fromOffset(3, 13),
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0,
 	}, container)
@@ -1028,16 +1030,32 @@ local function SectionLabel(page, text)
 	AccentGradient(tick, 90)
 	table.insert(AccentRegistry, { inst = tick, prop = "BackgroundColor3", key = "Accent" })
 
+	local upperText = string.upper(text)
 	Create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(11, 0),
 		Size = UDim2.new(1, -11, 1, 0),
 		Font = Enum.Font.GothamBold,
-		Text = string.upper(text),
+		Text = upperText,
 		TextColor3 = Theme.SubText,
 		TextSize = 10,
 		TextXAlignment = Enum.TextXAlignment.Left,
 	}, container)
+
+	local okW, measured = pcall(function()
+		return TextService:GetTextSize(upperText, 10, Enum.Font.GothamBold, Vector2.new(10000, 10000))
+	end)
+	if okW and measured then
+		local hairX = 11 + measured.X + 12
+		Create("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, hairX, 0.5, 0),
+			Size = UDim2.new(1, -(hairX + 2), 0, 1),
+			BackgroundColor3 = Theme.Stroke,
+			BackgroundTransparency = 0.86,
+			BorderSizePixel = 0,
+		}, container)
+	end
 	return container
 end
 
@@ -1138,26 +1156,58 @@ local function AddButton(page, text, color, callback)
 	}, page.Scroll)
 	Corner(btn, 10)
 	local btnScale = Create("UIScale", { Scale = 1 }, btn)
-	local btnStroke = Outline(btn, Theme.Stroke, 0.6)
-	local chevron = Create("TextLabel", {
+	local btnStroke = Outline(btn, Theme.Stroke, 0.72)
+
+	local sheen = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 19),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 0,
+	}, btn)
+	Corner(sheen, 9)
+	Create("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.94),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Rotation = 90,
+	}, sheen)
+
+	local chevChip = Create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
+		Position = UDim2.new(1, -9, 0.5, 0),
+		Size = UDim2.fromOffset(22, 22),
+		BackgroundColor3 = Theme.Background,
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		ZIndex = 1,
+	}, btn)
+	Corner(chevChip, 11)
+
+	local chevron = Create("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(12, 16),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
 		Text = ">",
 		TextColor3 = Theme.SubText,
-		TextSize = 12,
-	}, btn)
+		TextSize = 11,
+		ZIndex = 2,
+	}, chevChip)
+
 	btn.MouseEnter:Connect(function()
 		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover, Size = UDim2.new(1, 0, 0, 43) })
-		Tween(btnStroke, 0.15, { Transparency = 0.3 })
-		Tween(chevron, 0.18, { Position = UDim2.new(1, -10, 0.5, 0), TextColor3 = Theme.Text }, Enum.EasingStyle.Quart)
+		Tween(btnStroke, 0.15, { Transparency = 0.45 })
+		Tween(chevChip, 0.18, { Position = UDim2.new(1, -6, 0.5, 0) }, Enum.EasingStyle.Quart)
+		Tween(chevron, 0.18, { TextColor3 = Theme.Text }, Enum.EasingStyle.Quart)
 	end)
 	btn.MouseLeave:Connect(function()
 		Tween(btn, 0.18, { BackgroundColor3 = Theme.Card, Size = UDim2.new(1, 0, 0, 40) })
-		Tween(btnStroke, 0.15, { Transparency = 0.6 })
-		Tween(chevron, 0.18, { Position = UDim2.new(1, -14, 0.5, 0), TextColor3 = Theme.SubText }, Enum.EasingStyle.Quart)
+		Tween(btnStroke, 0.15, { Transparency = 0.72 })
+		Tween(chevChip, 0.18, { Position = UDim2.new(1, -9, 0.5, 0) }, Enum.EasingStyle.Quart)
+		Tween(chevron, 0.18, { TextColor3 = Theme.SubText }, Enum.EasingStyle.Quart)
 	end)
 	btn.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1211,7 +1261,7 @@ local function AddToggle(page, name, text, default, callback)
 		BorderSizePixel = 0,
 	}, btn)
 	Corner(switchBg, 12)
-	Outline(switchBg, Theme.Stroke, 0.55)
+	local switchRing = Outline(switchBg, Theme.Stroke, 0.55)
 
 	local dot = Create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -1233,6 +1283,7 @@ local function AddToggle(page, name, text, default, callback)
 			Color = state and Theme.Accent or Theme.Stroke,
 			Transparency = state and 0.4 or 0.6,
 		})
+		Tween(switchRing, 0.22, { Transparency = state and 0.2 or 0.55 })
 		local goal = { Position = state and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0) }
 		if instant then
 			dot.Position = goal.Position
@@ -1316,8 +1367,8 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 
 	local valuePill = Create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 8),
-		Size = UDim2.fromOffset(64, 18),
+		Position = UDim2.new(1, -14, 0, 7),
+		Size = UDim2.fromOffset(68, 20),
 		BackgroundColor3 = Theme.Background,
 		Font = Enum.Font.GothamBold,
 		Text = tostring(math.floor(value + 0.5)) .. suffixStr,
@@ -1326,33 +1377,35 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 		BorderSizePixel = 0,
 	}, holder)
 	Corner(valuePill, 6)
+	Outline(valuePill, Theme.Stroke, 0.8)
 
 	local track = Create("Frame", {
-		Position = UDim2.new(0, 14, 0, 38),
-		Size = UDim2.new(1, -28, 0, 6),
+		Position = UDim2.new(0, 14, 0, 37),
+		Size = UDim2.new(1, -28, 0, 8),
 		BackgroundColor3 = Theme.Background,
 		BorderSizePixel = 0,
 	}, holder)
-	Corner(track, 3)
+	Corner(track, 4)
+	Outline(track, Color3.fromRGB(0, 0, 0), 0.62)
 
 	local fill = Create("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0,
 	}, track)
-	Corner(fill, 3)
+	Corner(fill, 4)
 	AccentGradient(fill, 0)
 	table.insert(AccentRegistry, { inst = fill, prop = "BackgroundColor3", key = "Accent" })
 
 	local thumb = Create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.fromOffset(14, 14),
+		Size = UDim2.fromOffset(16, 16),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = 2,
 	}, track)
-	Corner(thumb, 7)
+	Corner(thumb, 8)
 	local thumbStroke = Outline(thumb, Color3.fromRGB(9, 10, 15), 0.35, 2)
 
 	local sliding = false
@@ -1370,7 +1423,7 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 	holder.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			sliding = true
-			Tween(thumb, 0.15, { Size = UDim2.fromOffset(16, 16) })
+			Tween(thumb, 0.15, { Size = UDim2.fromOffset(18, 18) })
 			Tween(thumbStroke, 0.15, { Color = Theme.Accent, Transparency = 0 })
 			Tween(valuePill, 0.15, { BackgroundColor3 = Theme.Accent:Lerp(Color3.new(0, 0, 0), 0.55) })
 			Update(input.Position.X)
@@ -1384,7 +1437,7 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 and sliding then
 			sliding = false
-			Tween(thumb, 0.15, { Size = UDim2.fromOffset(14, 14) })
+			Tween(thumb, 0.15, { Size = UDim2.fromOffset(16, 16) })
 			Tween(thumbStroke, 0.2, { Color = Color3.fromRGB(9, 10, 15), Transparency = 0.35 })
 			Tween(valuePill, 0.2, { BackgroundColor3 = Theme.Background })
 			ScheduleSave()
@@ -4257,7 +4310,7 @@ task.spawn(function()
 
 	for _, b in ipairs({ avClothesBtn, avRestoreBtn }) do
 		b.MouseEnter:Connect(function()
-			Tween(b, 0.15, { BackgroundColor3 = Theme.Stroke })
+			Tween(b, 0.15, { BackgroundColor3 = Theme.CardActive })
 		end)
 		b.MouseLeave:Connect(function()
 			Tween(b, 0.15, { BackgroundColor3 = Theme.CardHover })
