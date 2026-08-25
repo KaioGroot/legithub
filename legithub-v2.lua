@@ -12,7 +12,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v2.7"
+local VERSION = "v2.8"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -4176,7 +4176,7 @@ task.spawn(function()
 		Image = "",
 	}, avHolder)
 	Corner(avThumb, 26)
-	Outline(avThumb, Theme.Stroke, 0.5)
+	local avThumbStroke = Outline(avThumb, Theme.Stroke, 0.5)
 
 	local avName = Create("TextLabel", {
 		Position = UDim2.fromOffset(78, 16),
@@ -4259,6 +4259,15 @@ task.spawn(function()
 		return char, char and char:FindFirstChildOfClass("Humanoid")
 	end
 
+	local function FlashAvatarCard(success)
+		local color = success and Theme.Success or Theme.Danger
+		avThumbStroke.Color = color
+		avThumbStroke.Transparency = 0
+		task.delay(0.9, function()
+			Tween(avThumbStroke, 0.6, { Color = Theme.Stroke, Transparency = 0.5 })
+		end)
+	end
+
 	local function EnsureSavedDescription()
 		if savedMyDescription then return end
 		pcall(function()
@@ -4277,6 +4286,9 @@ task.spawn(function()
 		end
 		if not includeAccessories then return end
 
+		local toHum = toChar:FindFirstChildOfClass("Humanoid")
+		local fromHum = fromChar:FindFirstChildOfClass("Humanoid")
+
 		local myColors = toChar:FindFirstChildOfClass("BodyColors")
 		if myColors then pcall(function() myColors:Destroy() end) end
 		local theirColors = fromChar:FindFirstChildOfClass("BodyColors")
@@ -4293,6 +4305,16 @@ task.spawn(function()
 			pcall(function() theirFace:Clone().Parent = myHead end)
 		end
 
+		if toHum and fromHum then
+			for _, scaleName in ipairs({ "BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale" }) do
+				local fromVal = fromHum:FindFirstChild(scaleName)
+				local toVal = toHum:FindFirstChild(scaleName)
+				if fromVal and toVal then
+					pcall(function() toVal.Value = fromVal.Value end)
+				end
+			end
+		end
+
 		for _, child in ipairs(toChar:GetChildren()) do
 			if child:IsA("Accessory") then
 				pcall(function() child:Destroy() end)
@@ -4300,7 +4322,14 @@ task.spawn(function()
 		end
 		for _, child in ipairs(fromChar:GetChildren()) do
 			if child:IsA("Accessory") then
-				pcall(function() child:Clone().Parent = toChar end)
+				pcall(function()
+					local clone = child:Clone()
+					if toHum and toHum.AddAccessory then
+						toHum:AddAccessory(clone)
+					else
+						clone.Parent = toChar
+					end
+				end)
 			end
 		end
 	end
@@ -4341,9 +4370,11 @@ task.spawn(function()
 			end
 			avatarBusy = false
 			if done then
+				FlashAvatarCard(true)
 				local modo = clothesOnly and "Roupas de " or "Avatar de "
 				Notify("Avatar", modo .. plr.DisplayName .. " aplicado! Na maioria dos jogos so voce ve a mudanca.", "success")
 			else
+				FlashAvatarCard(false)
 				Notify("Avatar", "Nao foi possivel copiar o visual deste jogo.", "danger")
 			end
 		end)
@@ -4361,10 +4392,12 @@ task.spawn(function()
 			local ok = pcall(hum.ApplyDescription, hum, savedMyDescription)
 			avatarBusy = false
 			if ok then
+				FlashAvatarCard(true)
 				Notify("Avatar", "Seu perfil voltou ao normal!", "success")
 				return
 			end
 		end
+		FlashAvatarCard(false)
 		Notify("Avatar", "Sem backup local. Use 'Redefinir personagem' para restaurar.", nil)
 	end
 
