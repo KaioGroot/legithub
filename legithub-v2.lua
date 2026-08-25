@@ -10,7 +10,7 @@ local TextService = game:GetService("TextService")
 local LocalPlayer = Players.LocalPlayer
 
 if _G.LegitHub then
-	pcall;(function() _G.LegitHub.Unload() end)
+	pcall(function() _G.LegitHub.Unload() end)
 end
 
 local VERSION = "v3.2"
@@ -107,7 +107,7 @@ local function ScheduleSave()
 	SaveScheduled = true
 	task.delay(0.6, function()
 		SaveScheduled = false
-		pcall;(function()
+		pcall(function()
 			local data = {}
 			for name, opt in pairs(Options) do
 				data[name] = opt.Get()
@@ -141,7 +141,7 @@ end
 
 local function LoadConfig()
 	if not (writefile and isfile and readfile) then return end
-	pcall;(function()
+	pcall(function()
 		if isfile(CONFIG_FILE) then
 			ApplyConfigData(HttpService:JSONDecode(readfile(CONFIG_FILE)))
 		elseif isfile(LEGACY_CONFIG_FILE) then
@@ -210,7 +210,7 @@ local screenGui = Create("ScreenGui", {
 	IgnoreGuiInset = true,
 }, nil)
 
-local guiParentOk = pcall;(function()
+local guiParentOk = pcall(function()
 	screenGui.Parent = game:GetService("CoreGui")
 end)
 if not guiParentOk then
@@ -282,7 +282,7 @@ end
 local auroraA = AuroraWash("AuroraA", UDim2.fromOffset(-90, -70), UDim2.fromOffset(430, 270), Theme.Accent, 25)
 local auroraB = AuroraWash("AuroraB", UDim2.new(1, -120, 1, -200), UDim2.fromOffset(380, 240), Theme.Accent2, -30)
 
-task.spawn;(function()
+task.spawn(function()
 	while screenGui.Parent do
 		Tween(auroraA, 7, { Rotation = -20 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 		Tween(auroraB, 9, { Rotation = 30 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -345,7 +345,7 @@ local logoMark = Create("CanvasGroup", {
 	table.insert(AccentRegistry, { inst = logoMark, prop = "BackgroundColor3", key = "Accent" })
 	local logoGradient = AccentGradient(logoMark, 135)
 
-	task.spawn;(function()
+	task.spawn(function()
 		while screenGui.Parent do
 			Tween(logoGradient, 5, { Rotation = 225 }, Enum.EasingStyle.Linear)
 			task.wait(5)
@@ -467,7 +467,7 @@ Create("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Right,
 }, headerBar)
 
-task.spawn;(function()
+task.spawn(function()
 	while screenGui.Parent do
 		Tween(statusDot, 1.4, { BackgroundTransparency = 0.65 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 		task.wait(1.4)
@@ -511,10 +511,10 @@ local searchBox = Create("TextBox", {
 	ClearTextOnFocus = false,
 }, searchBoxHolder)
 
-searchBox.Focused:Connect;(function()
+searchBox.Focused:Connect(function()
 	Tween(searchStroke, 0.2, { Color = Theme.Accent, Transparency = 0.2 })
 end)
-searchBox.FocusLost:Connect;(function()
+searchBox.FocusLost:Connect(function()
 	Tween(searchStroke, 0.3, { Color = Theme.Stroke, Transparency = 0.55 })
 end)
 
@@ -548,7 +548,7 @@ local bubbleShadow = Create("ImageLabel", {
 	ZIndex = 0,
 }, bubble)
 
-task.spawn;(function()
+task.spawn(function()
 	while screenGui.Parent do
 		if bubble.Visible then
 			Tween(bubble, 1.6, { Size = UDim2.fromOffset(56, 56) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -781,12 +781,12 @@ local function MakePage(name, layoutOrder)
 	Pages[name] = pageApi
 	TabButtons[name] = tabBtn
 
-	tabBtn.MouseEnter:Connect;(function()
+	tabBtn.MouseEnter:Connect(function()
 		if CurrentTab ~= name then
 			Tween(tabBtn, 0.15, { BackgroundTransparency = 0.5 })
 		end
 	end)
-	tabBtn.MouseLeave:Connect;(function()
+	tabBtn.MouseLeave:Connect(function()
 		if CurrentTab ~= name then
 			Tween(tabBtn, 0.15, { BackgroundTransparency = 1 })
 		end
@@ -814,7 +814,7 @@ local function SelectTab(name)
 			Size = active and UDim2.new(0, 3, 0, 16) or UDim2.new(0, 3, 0, 0),
 		}, Enum.EasingStyle.Back)
 		if active then
-			task.spawn;(function()
+			task.spawn(function()
 				Tween(api.IconScale, 0.16, { Scale = 1.3 }, Enum.EasingStyle.Quart)
 				task.wait(0.16)
 				Tween(api.IconScale, 0.26, { Scale = 1 }, Enum.EasingStyle.Back)
@@ -825,7 +825,7 @@ local function SelectTab(name)
 	if previous and Pages[previous] then
 		local oldPage = Pages[previous].Page
 		local oldName = previous
-		Tween(oldPage, 0.12, { GroupTransparency = 1 }).Completed:Once;(function()
+		Tween(oldPage, 0.12, { GroupTransparency = 1 }).Completed:Once(function()
 			if CurrentTab ~= oldName then
 				oldPage.Visible = false
 			end
@@ -835,7 +835,7 @@ local function SelectTab(name)
 	newPage.Page.Visible = true
 	newPage.Page.GroupTransparency = 1
 	newPage.Scroll.Position = UDim2.fromOffset(0, 26)
-	task.defer;(function()
+	task.defer(function()
 		Tween(newPage.Page, 0.22, { GroupTransparency = 0 })
 		Tween(newPage.Scroll, 0.34, { Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Back)
 	end)
@@ -927,18 +927,18 @@ local function BuildSearchResultRow(opt, order)
 	}, rowBtn)
 	Corner(tabBadge, 6)
 
-	rowBtn.MouseEnter:Connect;(function()
+	rowBtn.MouseEnter:Connect(function()
 		Tween(rowBtn, 0.12, { BackgroundColor3 = Theme.CardHover })
 	end)
-	rowBtn.MouseLeave:Connect;(function()
+	rowBtn.MouseLeave:Connect(function()
 		Tween(rowBtn, 0.15, { BackgroundColor3 = Theme.Card })
 	end)
-	rowBtn.MouseButton1Click:Connect;(function()
+	rowBtn.MouseButton1Click:Connect(function()
 		PickSearchResult(opt)
 	end)
 end
 
-searchBox:GetPropertyChangedSignal("Text"):Connect;(function()
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	for _, child in ipairs(searchPanel:GetChildren()) do
 		if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
 			child:Destroy()
@@ -1042,7 +1042,7 @@ local function SectionLabel(page, text)
 		TextXAlignment = Enum.TextXAlignment.Left,
 	}, container)
 
-	local okW, measured = pcall;(function()
+	local okW, measured = pcall(function()
 		return TextService:GetTextSize(upperText, 10, Enum.Font.GothamBold, Vector2.new(10000, 10000))
 	end)
 	if okW and measured then
@@ -1197,13 +1197,13 @@ local function AddButton(page, text, color, callback)
 		ZIndex = 2,
 	}, chevChip)
 
-	btn.MouseEnter:Connect;(function()
+	btn.MouseEnter:Connect(function()
 		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover, Size = UDim2.new(1, 0, 0, 43) })
 		Tween(btnStroke, 0.15, { Transparency = 0.45 })
 		Tween(chevChip, 0.18, { Position = UDim2.new(1, -6, 0.5, 0) }, Enum.EasingStyle.Quart)
 		Tween(chevron, 0.18, { TextColor3 = Theme.Text }, Enum.EasingStyle.Quart)
 	end)
-	btn.MouseLeave:Connect;(function()
+	btn.MouseLeave:Connect(function()
 		Tween(btn, 0.18, { BackgroundColor3 = Theme.Card, Size = UDim2.new(1, 0, 0, 40) })
 		Tween(btnStroke, 0.15, { Transparency = 0.72 })
 		Tween(chevChip, 0.18, { Position = UDim2.new(1, -9, 0.5, 0) }, Enum.EasingStyle.Quart)
@@ -1220,7 +1220,7 @@ local function AddButton(page, text, color, callback)
 			Tween(btnScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 		end
 	end)
-	btn.MouseButton1Click:Connect;(function()
+	btn.MouseButton1Click:Connect(function()
 		task.spawn(callback)
 	end)
 	return btn
@@ -1300,10 +1300,10 @@ local function AddToggle(page, name, text, default, callback)
 		end
 	end
 
-	btn.MouseEnter:Connect;(function()
+	btn.MouseEnter:Connect(function()
 		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover, Size = UDim2.new(1, 0, 0, 45) })
 	end)
-	btn.MouseLeave:Connect;(function()
+	btn.MouseLeave:Connect(function()
 		Tween(btn, 0.18, { BackgroundColor3 = Theme.Card, Size = UDim2.new(1, 0, 0, 42) })
 	end)
 
@@ -1318,7 +1318,7 @@ local function AddToggle(page, name, text, default, callback)
 			Tween(btnScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 		end
 	end)
-	btn.MouseButton1Click:Connect;(function()
+	btn.MouseButton1Click:Connect(function()
 		state = not state
 		Render(false)
 		task.spawn(callback, state)
@@ -1564,13 +1564,13 @@ local function AddDropdown(page, name, text, options, default, callback)
 		Corner(optBtn, 6)
 		optionButtons[optName] = optBtn
 
-		optBtn.MouseEnter:Connect;(function()
+		optBtn.MouseEnter:Connect(function()
 			Tween(optBtn, 0.12, { BackgroundColor3 = Theme.CardHover })
 		end)
-		optBtn.MouseLeave:Connect;(function()
+		optBtn.MouseLeave:Connect(function()
 			Tween(optBtn, 0.12, { BackgroundColor3 = Theme.Background })
 		end)
-		optBtn.MouseButton1Click:Connect;(function()
+		optBtn.MouseButton1Click:Connect(function()
 			selected = optName
 			currentLabel.Text = optName
 			for other, ob in pairs(optionButtons) do
@@ -1595,10 +1595,10 @@ local function AddDropdown(page, name, text, options, default, callback)
 		return n
 	end
 
-	btn.MouseEnter:Connect;(function()
+	btn.MouseEnter:Connect(function()
 		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover })
 	end)
-	btn.MouseLeave:Connect;(function()
+	btn.MouseLeave:Connect(function()
 		Tween(btn, 0.15, { BackgroundColor3 = Theme.Card })
 	end)
 	local ddScale = Create("UIScale", { Scale = 1 }, btn)
@@ -1613,7 +1613,7 @@ local function AddDropdown(page, name, text, options, default, callback)
 			Tween(ddScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 		end
 	end)
-	btn.MouseButton1Click:Connect;(function()
+	btn.MouseButton1Click:Connect(function()
 		expanded = not expanded
 		if expanded then
 			Tween(chevron, 0.25, { Rotation = 180 }, Enum.EasingStyle.Back)
@@ -1737,7 +1737,7 @@ local function Notify(title, message, kind)
 	Corner(progressFill, 2)
 
 	toast.Position = UDim2.new(1, 320, 0, 0)
-	task.defer;(function()
+	task.defer(function()
 		Tween(toast, 0.45, { GroupTransparency = 0, Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Back)
 		Tween(progressFill, 3.4, { Size = UDim2.fromScale(0, 1) }, Enum.EasingStyle.Linear)
 	end)
@@ -1772,7 +1772,7 @@ local CaptureTarget = nil
 local function RebuildKeymap()
 	table.clear(KeycodeToName)
 	for name, keyName in pairs(Keybinds) do
-		local ok, keycode = pcall;(function()
+		local ok, keycode = pcall(function()
 			return Enum.KeyCode[keyName]
 		end)
 		if ok and keycode then
@@ -1886,8 +1886,8 @@ local flyObjects = nil
 
 StopFly = function()
 	if flyObjects then
-		pcall;(function() flyObjects.bv:Destroy() end)
-		pcall;(function() flyObjects.bg:Destroy() end)
+		pcall(function() flyObjects.bv:Destroy() end)
+		pcall(function() flyObjects.bg:Destroy() end)
 		flyObjects = nil
 	end
 end
@@ -1956,7 +1956,7 @@ local invisConns = {}
 
 local function StopInvisWatchers()
 	for _, conn in ipairs(invisConns) do
-		pcall;(function() conn:Disconnect() end)
+		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(invisConns)
 end
@@ -1996,7 +1996,7 @@ local function IyForceRespawn()
 	local clone = invisCloneChar
 	InvisResetState()
 
-	pcall;(function()
+	pcall(function()
 		if real and not real.Destroyed then
 			LocalPlayer.Character = real
 			task.wait()
@@ -2009,7 +2009,7 @@ local function IyForceRespawn()
 	end)
 
 	if clone then
-		pcall;(function() clone:Destroy() end)
+		pcall(function() clone:Destroy() end)
 	end
 
 	SetInvisOption(false, true)
@@ -2024,7 +2024,7 @@ IyTurnVisible = function()
 
 	if not (real and clone and not real.Destroyed) then
 		if clone then
-			pcall;(function() clone:Destroy() end)
+			pcall(function() clone:Destroy() end)
 		end
 		SetInvisOption(false, true)
 		Notify("Invisibilidade", "Personagem original perdido. Use o reset.", "danger")
@@ -2032,7 +2032,7 @@ IyTurnVisible = function()
 	end
 
 	local targetCF = nil
-	pcall;(function()
+	pcall(function()
 		local cloneRoot = clone:FindFirstChild("HumanoidRootPart")
 		if cloneRoot then
 			targetCF = cloneRoot.CFrame
@@ -2040,19 +2040,19 @@ IyTurnVisible = function()
 	end)
 
 	LocalPlayer.Character = real
-	pcall;(function() real.Parent = workspace end)
+	pcall(function() real.Parent = workspace end)
 
 	task.wait()
 
 	if targetCF then
-		pcall;(function()
+		pcall(function()
 			real:PivotTo(targetCF)
 		end)
 	end
 
-	pcall;(function() clone:Destroy() end)
+	pcall(function() clone:Destroy() end)
 
-	pcall;(function()
+	pcall(function()
 		local anim = real:FindFirstChild("Animate")
 		if anim then
 			anim.Disabled = true
@@ -2063,10 +2063,10 @@ IyTurnVisible = function()
 	RestoreCamera(real)
 
 	if targetCF then
-		task.spawn;(function()
+		task.spawn(function()
 			for _ = 1, 20 do
 				if real.Destroyed or LocalPlayer.Character ~= real then break end
-				pcall;(function()
+				pcall(function()
 					local rr = real:FindFirstChild("HumanoidRootPart")
 					if rr and (rr.CFrame.Position - targetCF.Position).Magnitude > 3 then
 						real:PivotTo(targetCF)
@@ -2085,7 +2085,7 @@ IyStartInvisibility = function()
 	local result = false
 	local startPos = nil
 
-	local ok, err = pcall;(function()
+	local ok, err = pcall(function()
 		local real = LocalPlayer.Character
 		local realHumanoid = real and real:FindFirstChildOfClass("Humanoid")
 		local realRoot = real and real:FindFirstChild("HumanoidRootPart")
@@ -2110,13 +2110,13 @@ IyStartInvisibility = function()
 		end
 
 		local voidHeight = -500
-		pcall;(function()
+		pcall(function()
 			voidHeight = workspace.FallenPartsDestroyHeight
 		end)
 
-		table.insert(invisConns, RunService.Stepped:Connect;(function()
+		table.insert(invisConns, RunService.Stepped:Connect(function()
 			if not invisActive then return end
-			pcall;(function()
+			pcall(function()
 				local current = LocalPlayer.Character
 				local root = current and current:FindFirstChild("HumanoidRootPart")
 				if not root then return end
@@ -2136,8 +2136,8 @@ IyStartInvisibility = function()
 
 		local cloneHumanoid = clone:FindFirstChildOfClass("Humanoid")
 		if cloneHumanoid then
-			table.insert(invisConns, cloneHumanoid.Died:Connect;(function()
-				task.spawn;(function()
+			table.insert(invisConns, cloneHumanoid.Died:Connect(function()
+				task.spawn(function()
 					if invisActive then
 						IyForceRespawn()
 						Notify("Invisibilidade", "Desligada (personagem morreu).", "danger")
@@ -2147,17 +2147,17 @@ IyStartInvisibility = function()
 		end
 
 		table.insert(invisConns, LocalPlayer.CharacterAdded:Connect(function(newChar)
-			task.defer;(function()
+			task.defer(function()
 				if not invisActive or invisBusy then return end
 				if newChar == invisCloneChar then return end
 				local realRef = invisRealChar
 				local cloneRef = invisCloneChar
 				InvisResetState()
 				if cloneRef then
-					pcall;(function() cloneRef:Destroy() end)
+					pcall(function() cloneRef:Destroy() end)
 				end
 				if realRef then
-					pcall;(function() realRef:Destroy() end)
+					pcall(function() realRef:Destroy() end)
 				end
 				SetInvisOption(false, true)
 				Notify("Invisibilidade", "Desligada (respawn detectado).", "danger")
@@ -2203,7 +2203,7 @@ IyStartInvisibility = function()
 		local cloneRef = invisCloneChar
 		InvisResetState()
 
-		pcall;(function()
+		pcall(function()
 			local c = workspace.CurrentCamera
 			if c then
 				c.CameraType = Enum.CameraType.Custom
@@ -2211,11 +2211,11 @@ IyStartInvisibility = function()
 		end)
 
 		if cloneRef then
-			pcall;(function() cloneRef:Destroy() end)
+			pcall(function() cloneRef:Destroy() end)
 		end
 
 		if realRef and not realRef.Destroyed then
-			pcall;(function()
+			pcall(function()
 				LocalPlayer.Character = realRef
 				if not realRef.Parent then
 					realRef.Parent = workspace
@@ -2246,7 +2246,7 @@ Flags.AntiAFK = false
 local VirtualUser = game:GetService("VirtualUser")
 Connect(LocalPlayer.Idled, function()
 	if not Flags.AntiAFK then return end
-	pcall;(function()
+	pcall(function()
 		VirtualUser:CaptureController()
 		VirtualUser:ClickButton2(Vector2.new())
 	end)
@@ -2254,7 +2254,7 @@ end)
 
 local promptCooldown = {}
 
-task.spawn;(function()
+task.spawn(function()
 	while true do
 		task.wait(0.25)
 		if Flags.AutoPrompt then
@@ -2271,7 +2271,7 @@ task.spawn;(function()
 					if not prompt.Enabled then return end
 					if now - (promptCooldown[prompt] or 0) < 1 then return end
 					promptCooldown[prompt] = now
-					pcall;(function()
+					pcall(function()
 						if typeof(fireproximityprompt) == "function" then
 							fireproximityprompt(prompt)
 						else
@@ -2322,7 +2322,7 @@ local hitboxSaved = {}
 StopHitbox = function()
 	Flags.Hitbox = false
 	for hrp, saved in pairs(hitboxSaved) do
-		pcall;(function()
+		pcall(function()
 			if hrp.Parent then
 				hrp.Size = saved.size
 				hrp.Transparency = saved.transparency
@@ -2333,7 +2333,7 @@ StopHitbox = function()
 	table.clear(hitboxSaved)
 end
 
-task.spawn;(function()
+task.spawn(function()
 	while true do
 		task.wait(0.25)
 		if Flags.Hitbox and not GetHubRemote() then
@@ -2345,7 +2345,7 @@ task.spawn;(function()
 			local size = Flags.HitboxSize or 10
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer then
-					pcall;(function()
+					pcall(function()
 						local char = plr.Character
 						local hrp = char and char:FindFirstChild("HumanoidRootPart")
 						if hrp and hrp:IsA("BasePart") then
@@ -2370,7 +2370,7 @@ end)
 local reachSaved = {}
 
 local function ApplyReach(handle)
-	pcall;(function()
+	pcall(function()
 		local tool = handle.Parent
 		local len = Flags.ReachSize or 30
 		if not reachSaved[handle] then
@@ -2400,7 +2400,7 @@ end
 StopReach = function()
 	Flags.Reach = false
 	for handle, saved in pairs(reachSaved) do
-		pcall;(function()
+		pcall(function()
 			if handle.Parent then
 				handle.Size = saved.size
 				handle.Massless = saved.massless
@@ -2418,7 +2418,7 @@ StopReach = function()
 	table.clear(reachSaved)
 end
 
-task.spawn;(function()
+task.spawn(function()
 	while true do
 		task.wait(0.15)
 		if Flags.Reach and not GetHubRemote() then
@@ -2493,13 +2493,13 @@ local function ApplyVisualProfile(profile, clone)
 end
 
 local function WatchCopiedTools(copied)
-	task.spawn;(function()
+	task.spawn(function()
 		while #copied > 0 do
 			for i = #copied, 1, -1 do
 				local item = copied[i]
 				local clone = item.clone
 				if clone and clone.Parent then
-					pcall;(function()
+					pcall(function()
 						ApplyVisualProfile(item.profile, clone)
 					end)
 				else
@@ -2559,13 +2559,13 @@ local function CopyToolsFrom(target)
 	local firstClone = nil
 
 	for _, tool in ipairs(sources) do
-		local ok, clone = pcall;(function()
+		local ok, clone = pcall(function()
 			tool.Archivable = true
 			return tool:Clone()
 		end)
 		if ok and clone then
 			local profile = CaptureVisualProfile(tool)
-			pcall;(function()
+			pcall(function()
 				ApplyVisualProfile(profile, clone)
 			end)
 			clone.Parent = backpack
@@ -2581,11 +2581,11 @@ local function CopyToolsFrom(target)
 		return
 	end
 
-	task.spawn;(function()
+	task.spawn(function()
 		local equippedOk = false
 		for _ = 1, 3 do
 			if not firstClone.Parent then break end
-			pcall;(function() hum:EquipTool(firstClone) end)
+			pcall(function() hum:EquipTool(firstClone) end)
 			task.wait(0.3)
 			if firstClone.Parent == character then
 				equippedOk = true
@@ -2596,7 +2596,7 @@ local function CopyToolsFrom(target)
 		if not equippedOk and firstClone.Parent then
 			firstClone.Parent = backpack
 			task.wait(0.1)
-			pcall;(function() hum:EquipTool(firstClone) end)
+			pcall(function() hum:EquipTool(firstClone) end)
 			equippedOk = firstClone.Parent == character
 		end
 
@@ -2608,7 +2608,7 @@ local function CopyToolsFrom(target)
 				if (handle.Position - hrp.Position).Magnitude > 60 then
 					firstClone.Parent = backpack
 					task.wait(0.1)
-					pcall;(function() hum:EquipTool(firstClone) end)
+					pcall(function() hum:EquipTool(firstClone) end)
 					equippedOk = firstClone.Parent == character
 				end
 			end
@@ -2697,7 +2697,7 @@ local fovDrawing, AIMBOT_RENDER
 				Volume = 0.6,
 			}, screenGui)
 		end
-		pcall;(function()
+		pcall(function()
 			admPing:Play()
 		end)
 	end
@@ -2773,11 +2773,11 @@ local fovDrawing, AIMBOT_RENDER
 		end
 		if game.CreatorType == Enum.CreatorType.Group and tonumber(game.CreatorId) then
 			local groupId = tonumber(game.CreatorId)
-			local ok, rank = pcall;(function()
+			local ok, rank = pcall(function()
 				return plr:GetRankInGroup(groupId)
 			end)
 			if ok and rank and rank >= (Flags.AdmMinRank or 250) then
-				local okRole, roleName = pcall;(function()
+				local okRole, roleName = pcall(function()
 					return plr:GetRoleInGroup(groupId)
 				end)
 				return { Role = (okRole and roleName or "Rank " .. rank) .. " [grupo]", Rank = rank }
@@ -2788,7 +2788,7 @@ local fovDrawing, AIMBOT_RENDER
 
 	local function ScanPlayer(plr)
 		if plr == LocalPlayer or not plr.Parent then return end
-		task.spawn;(function()
+		task.spawn(function()
 			local info = ClassifyPlayer(plr)
 			if info then
 				ApplyAdm(plr, info)
@@ -2867,13 +2867,13 @@ local fovDrawing, AIMBOT_RENDER
 			ZIndex = 61,
 		}, spectBar)
 		Corner(stopBtn, 8)
-		stopBtn.MouseEnter:Connect;(function()
+		stopBtn.MouseEnter:Connect(function()
 			Tween(stopBtn, 0.15, { BackgroundColor3 = Theme.CardHover })
 		end)
-		stopBtn.MouseLeave:Connect;(function()
+		stopBtn.MouseLeave:Connect(function()
 			Tween(stopBtn, 0.15, { BackgroundColor3 = Theme.Card })
 		end)
-		stopBtn.MouseButton1Click:Connect;(function()
+		stopBtn.MouseButton1Click:Connect(function()
 			StopSpectate(false)
 		end)
 	end
@@ -2890,7 +2890,7 @@ local fovDrawing, AIMBOT_RENDER
 			spectLeaveConn:Disconnect()
 			spectLeaveConn = nil
 		end
-		pcall;(function()
+		pcall(function()
 			local char = LocalPlayer.Character
 			local hum = char and char:FindFirstChildOfClass("Humanoid")
 			if hum and workspace.CurrentCamera then
@@ -2898,7 +2898,7 @@ local fovDrawing, AIMBOT_RENDER
 			end
 		end)
 		if spectBar then
-			Tween(spectBar, 0.25, { GroupTransparency = 1 }).Completed:Once;(function()
+			Tween(spectBar, 0.25, { GroupTransparency = 1 }).Completed:Once(function()
 				if not spectTarget and spectBar then
 					spectBar.Visible = false
 				end
@@ -2926,7 +2926,7 @@ local fovDrawing, AIMBOT_RENDER
 		spectNameLabel.Text = "Espiando: " .. plr.DisplayName
 		spectBar.Visible = true
 		Tween(spectBar, 0.3, { GroupTransparency = 0 }, Enum.EasingStyle.Quart)
-		spectConn = RunService.RenderStepped:Connect;(function()
+		spectConn = RunService.RenderStepped:Connect(function()
 			local t = spectTarget
 			if not t then return end
 			local cam = workspace.CurrentCamera
@@ -3039,7 +3039,7 @@ local fovDrawing, AIMBOT_RENDER
 				pDragging = true
 				pDragStart = input.Position
 				pStartPos = admPanel.Position
-				input.Changed:Connect;(function()
+				input.Changed:Connect(function()
 					if input.UserInputState == Enum.UserInputState.End then
 						pDragging = false
 					end
@@ -3056,7 +3056,7 @@ local fovDrawing, AIMBOT_RENDER
 			end
 		end))
 
-		task.spawn;(function()
+		task.spawn(function()
 			while screenGui.Parent do
 				if admPanel.Visible then
 					Tween(dot, 0.75, { Size = UDim2.fromOffset(11, 11), BackgroundTransparency = 0.5 }, Enum.EasingStyle.Sine)
@@ -3136,13 +3136,13 @@ local fovDrawing, AIMBOT_RENDER
 				rowStroke.Color = Theme.Accent
 				rowStroke.Transparency = 0.15
 			end
-			row.MouseEnter:Connect;(function()
+			row.MouseEnter:Connect(function()
 				Tween(row, 0.12, { BackgroundTransparency = 0.05 })
 			end)
-			row.MouseLeave:Connect;(function()
+			row.MouseLeave:Connect(function()
 				Tween(row, 0.15, { BackgroundTransparency = 0.35 })
 			end)
-			row.MouseButton1Click:Connect;(function()
+			row.MouseButton1Click:Connect(function()
 				if spectTarget == entry.plr then
 					StopSpectate(false)
 				else
@@ -3209,7 +3209,7 @@ local fovDrawing, AIMBOT_RENDER
 
 	ClearWpDrawings = function()
 		for _, d in pairs(waypointDrawings) do
-			pcall;(function() d:Remove() end)
+			pcall(function() d:Remove() end)
 		end
 		table.clear(waypointDrawings)
 	end
@@ -3218,7 +3218,7 @@ local fovDrawing, AIMBOT_RENDER
 		ClearWpDrawings()
 		if not (Flags.WaypointESP and Drawing) then return end
 		for _, item in ipairs(WpForCurrentPlace()) do
-			pcall;(function()
+			pcall(function()
 				local txt = Drawing.new("Text")
 				txt.Text = item.name
 				txt.Size = 14
@@ -3321,7 +3321,7 @@ local fovDrawing, AIMBOT_RENDER
 		RemoveAdm(plr, true)
 	end))
 
-	task.spawn;(function()
+	task.spawn(function()
 		while HubAlive do
 			if Flags.AdmMonitor then
 				ScanAll()
@@ -3342,7 +3342,7 @@ espSupported = Drawing ~= nil
 local ESP_RENDER_NAME = "LegitHub_ESP"
 
 local function NewDrawing(class, props)
-	local ok, obj = pcall;(function()
+	local ok, obj = pcall(function()
 		local drawing = Drawing.new(class)
 		for k, v in pairs(props) do
 			drawing[k] = v
@@ -3356,7 +3356,7 @@ local PoolKeys = { "fill", "name", "distance", "toolText", "healthBg", "healthFi
 
 local function RemoveDrawing(obj)
 	if obj then
-		pcall;(function() obj:Remove() end)
+		pcall(function() obj:Remove() end)
 	end
 end
 
@@ -3504,7 +3504,7 @@ local function EspRender()
 	local now = os.clock()
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		pcall;(function()
+		pcall(function()
 			local skip = player == LocalPlayer
 			if not skip and Flags.ESPTeamCheck and myTeam ~= nil and player.Team == myTeam then
 				skip = true
@@ -3643,14 +3643,14 @@ local function EspRender()
 end
 
 if espSupported then
-	pcall;(function()
+	pcall(function()
 		RunService:UnbindFromRenderStep(ESP_RENDER_NAME)
 	end)
 	RunService:BindToRenderStep(ESP_RENDER_NAME, Enum.RenderPriority.Camera.Value + 2, function()
 		local ok = pcall(EspRender)
 		if not ok then
 			for _, pool in pairs(espCache) do
-				pcall;(function() HideEsp(pool) end)
+				pcall(function() HideEsp(pool) end)
 			end
 		end
 	end)
@@ -3658,7 +3658,7 @@ end
 -- ============ Aimbot (v2 - otimizado, sem lag) ============
 fovDrawing = nil
 if Drawing then
-	pcall;(function()
+	pcall(function()
 		fovDrawing = Drawing.new("Circle")
 		fovDrawing.Thickness = 1.5
 		fovDrawing.NumSides = 80
@@ -3727,10 +3727,10 @@ local function _AbTick()
 	return bst
 end
 
-pcall;(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER) end)
+pcall(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER) end)
 
 RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1, function()
-	pcall;(function()
+	pcall(function()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 		if fovDrawing then
@@ -3743,7 +3743,7 @@ RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1,
 		end
 		if not Flags.Aimbot then return end
 		if Flags.AimbotMode == "Botao direito" then
-			local ok, held = pcall;(function()
+			local ok, held = pcall(function()
 				return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 			end)
 			if not (ok and held) then return end
@@ -3785,7 +3785,7 @@ local function SetMinimized(state)
 		footer.Visible = false
 		root.Size = UDim2.fromOffset(660, 58)
 		root.Visible = true
-		Tween(root, 0.35, { Size = UDim2.fromOffset(660, 460) }, Enum.EasingStyle.Back).Completed:Once;(function()
+		Tween(root, 0.35, { Size = UDim2.fromOffset(660, 460) }, Enum.EasingStyle.Back).Completed:Once(function()
 			if myToken == restoreToken and not minimized then
 				body.Visible = true
 				footer.Visible = true
@@ -3794,7 +3794,7 @@ local function SetMinimized(state)
 	end
 end
 
-minimizeBtn.MouseButton1Click:Connect;(function()
+minimizeBtn.MouseButton1Click:Connect(function()
 	SetMinimized(true)
 end)
 
@@ -3839,7 +3839,7 @@ headerBar.InputBegan:Connect(function(input)
 		dragging = true
 		dragStart = input.Position
 		startPos = root.Position
-		input.Changed:Connect;(function()
+		input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
 			end
@@ -3857,17 +3857,17 @@ Connect(UserInputService.InputChanged, function(input)
 	end
 end)
 
-closeBtn.MouseEnter:Connect;(function()
+closeBtn.MouseEnter:Connect(function()
 	Tween(closeBtn, 0.15, { BackgroundColor3 = Color3.fromRGB(96, 48, 60), Rotation = 90 })
 end)
-closeBtn.MouseLeave:Connect;(function()
+closeBtn.MouseLeave:Connect(function()
 	Tween(closeBtn, 0.15, { BackgroundColor3 = Theme.Card, Rotation = 0 })
 end)
 
-minimizeBtn.MouseEnter:Connect;(function()
+minimizeBtn.MouseEnter:Connect(function()
 	Tween(minimizeBtn, 0.15, { BackgroundColor3 = Theme.CardHover })
 end)
-minimizeBtn.MouseLeave:Connect;(function()
+minimizeBtn.MouseLeave:Connect(function()
 	Tween(minimizeBtn, 0.15, { BackgroundColor3 = Theme.Card })
 end)
 
@@ -3907,17 +3907,17 @@ Connect(UserInputService.InputChanged, function(input)
 	end
 end)
 
-closeBtn.MouseButton1Click:Connect;(function()
+closeBtn.MouseButton1Click:Connect(function()
 	Tween(blur, 0.25, { Size = 0 })
 	Tween(uiScale, 0.25, { Scale = 0.94 })
 	Tween(root, 0.24, { Rotation = -1.6 })
-	Tween(root, 0.22, { GroupTransparency = 1 }).Completed:Once;(function()
+	Tween(root, 0.22, { GroupTransparency = 1 }).Completed:Once(function()
 		root.Visible = false
 		root.Rotation = 0
 	end)
 end)
 
-task.spawn;(function()
+task.spawn(function()
 	local frames = 0
 	local elapsed = 0
 	Connect(RunService.Heartbeat, function(dt)
@@ -3925,7 +3925,7 @@ task.spawn;(function()
 		elapsed += dt
 		if elapsed >= 1 then
 			local ping = 0
-			pcall;(function()
+			pcall(function()
 				ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
 			end)
 			fpsLabel.Text = ("FPS: %d  |  Ping: %dms"):format(math.floor(frames / elapsed), ping)
@@ -3992,7 +3992,7 @@ end)()
 			end
 		elseif invisActive then
 			if invisBusy then
-				task.spawn;(function()
+				task.spawn(function()
 					while invisBusy do
 						task.wait(0.05)
 					end
@@ -4246,7 +4246,7 @@ end)()
 				Corner(optBtn, 6)
 				tpOptionButtons[plr] = optBtn
 
-				optBtn.MouseButton1Click:Connect;(function()
+				optBtn.MouseButton1Click:Connect(function()
 					SelectTpPlayer(plr)
 					TpCollapse()
 				end)
@@ -4257,27 +4257,27 @@ end)()
 		return count
 	end
 
-	tpBtn.MouseEnter:Connect;(function()
+	tpBtn.MouseEnter:Connect(function()
 		Tween(tpBtn, 0.15, { BackgroundColor3 = Theme.CardHover })
 	end)
-	tpBtn.MouseLeave:Connect;(function()
+	tpBtn.MouseLeave:Connect(function()
 		Tween(tpBtn, 0.15, { BackgroundColor3 = Theme.Card })
 	end)
-	tpBtn.MouseButton1Click:Connect;(function()
+	tpBtn.MouseButton1Click:Connect(function()
 		tpExpanded = not tpExpanded
 		if tpExpanded then
 			local count = TpRebuild()
 			Tween(tpChevron, 0.25, { Rotation = 180 }, Enum.EasingStyle.Back)
 			TpResize(count, true)
 			task.delay(0.05, function()
-				pcall;(function() tpSearch:CaptureFocus() end)
+				pcall(function() tpSearch:CaptureFocus() end)
 			end)
 		else
 			TpCollapse()
 		end
 	end)
 
-	tpSearch.Focused:Connect;(function()
+	tpSearch.Focused:Connect(function()
 		Tween(tpSearchStroke, 0.15, { Transparency = 0.1, Color = Theme.Accent })
 	end)
 	tpSearch.FocusLost:Connect(function(enterPressed)
@@ -4291,7 +4291,7 @@ end)()
 		end
 	end)
 
-	tpSearch:GetPropertyChangedSignal("Text"):Connect;(function()
+	tpSearch:GetPropertyChangedSignal("Text"):Connect(function()
 		if not tpExpanded then return end
 		local count = TpRebuild()
 		TpResize(count, false)
@@ -4299,7 +4299,7 @@ end)()
 
 	Connect(Players.PlayerAdded, function()
 		if tpExpanded then
-			task.defer;(function()
+			task.defer(function()
 				local count = TpRebuild()
 				TpResize(count, false)
 			end)
@@ -4315,7 +4315,7 @@ end)()
 			end
 		end
 		if tpExpanded then
-			task.defer;(function()
+			task.defer(function()
 				local count = TpRebuild()
 				TpResize(count, false)
 			end)
@@ -4449,10 +4449,10 @@ end)()
 	})
 
 	for _, b in ipairs({ avClothesBtn, avRestoreBtn }) do
-		b.MouseEnter:Connect;(function()
+		b.MouseEnter:Connect(function()
 			Tween(b, 0.15, { BackgroundColor3 = Theme.CardActive })
 		end)
-		b.MouseLeave:Connect;(function()
+		b.MouseLeave:Connect(function()
 			Tween(b, 0.15, { BackgroundColor3 = Theme.CardHover })
 		end)
 	end
@@ -4473,7 +4473,7 @@ end)()
 
 	local function EnsureSavedDescription()
 		if savedMyDescription then return end
-		pcall;(function()
+		pcall(function()
 			savedMyDescription = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
 		end)
 	end
@@ -4481,10 +4481,10 @@ end)()
 	local function CloneLook(fromChar, toChar, includeAccessories)
 		for _, clsName in ipairs({ "Shirt", "Pants", "ShirtGraphic" }) do
 			local mine = toChar:FindFirstChildOfClass(clsName)
-			if mine then pcall;(function() mine:Destroy() end) end
+			if mine then pcall(function() mine:Destroy() end) end
 			local theirs = fromChar:FindFirstChildOfClass(clsName)
 			if theirs then
-				pcall;(function() theirs:Clone().Parent = toChar end)
+				pcall(function() theirs:Clone().Parent = toChar end)
 			end
 		end
 		if not includeAccessories then return end
@@ -4493,19 +4493,19 @@ end)()
 		local fromHum = fromChar:FindFirstChildOfClass("Humanoid")
 
 		local myColors = toChar:FindFirstChildOfClass("BodyColors")
-		if myColors then pcall;(function() myColors:Destroy() end) end
+		if myColors then pcall(function() myColors:Destroy() end) end
 		local theirColors = fromChar:FindFirstChildOfClass("BodyColors")
 		if theirColors then
-			pcall;(function() theirColors:Clone().Parent = toChar end)
+			pcall(function() theirColors:Clone().Parent = toChar end)
 		end
 
 		local myHead = toChar:FindFirstChild("Head")
 		local theirHead = fromChar:FindFirstChild("Head")
 		local myFace = myHead and myHead:FindFirstChildOfClass("Decal")
-		if myFace then pcall;(function() myFace:Destroy() end) end
+		if myFace then pcall(function() myFace:Destroy() end) end
 		local theirFace = theirHead and theirHead:FindFirstChildOfClass("Decal")
 		if theirFace and myHead then
-			pcall;(function() theirFace:Clone().Parent = myHead end)
+			pcall(function() theirFace:Clone().Parent = myHead end)
 		end
 
 		if toHum and fromHum then
@@ -4513,19 +4513,19 @@ end)()
 				local fromVal = fromHum:FindFirstChild(scaleName)
 				local toVal = toHum:FindFirstChild(scaleName)
 				if fromVal and toVal then
-					pcall;(function() toVal.Value = fromVal.Value end)
+					pcall(function() toVal.Value = fromVal.Value end)
 				end
 			end
 		end
 
 		for _, child in ipairs(toChar:GetChildren()) do
 			if child:IsA("Accessory") then
-				pcall;(function() child:Destroy() end)
+				pcall(function() child:Destroy() end)
 			end
 		end
 		for _, child in ipairs(fromChar:GetChildren()) do
 			if child:IsA("Accessory") then
-				pcall;(function()
+				pcall(function()
 					local clone = child:Clone()
 					if toHum and toHum.AddAccessory then
 						toHum:AddAccessory(clone)
@@ -4555,7 +4555,7 @@ end)()
 		end
 
 		avatarBusy = true
-		task.spawn;(function()
+		task.spawn(function()
 			local done = false
 			if clothesOnly then
 				done = pcall(CloneLook, tchar, mchar, false)
@@ -4604,13 +4604,13 @@ end)()
 		Notify("Avatar", "Sem backup local. Use 'Redefinir personagem' para restaurar.", nil)
 	end
 
-	avMainBtn.MouseButton1Click:Connect;(function()
+	avMainBtn.MouseButton1Click:Connect(function()
 		CopyAvatar(selectedPlayer, false)
 	end)
-	avClothesBtn.MouseButton1Click:Connect;(function()
+	avClothesBtn.MouseButton1Click:Connect(function()
 		CopyAvatar(selectedPlayer, true)
 	end)
-	avRestoreBtn.MouseButton1Click:Connect;(function()
+	avRestoreBtn.MouseButton1Click:Connect(function()
 		RestoreMyAvatar()
 	end)
 
@@ -4655,7 +4655,7 @@ end)()
 
 	AddDropdown(page, "QualityLevel", "Qualidade grafica",
 		{ "Automatico", "Baixa", "Media", "Alta" }, "Automatico", function(choice)
-		pcall;(function()
+		pcall(function()
 			local map = {
 				Automatico = Enum.QualityLevel.Automatic,
 				Baixa = 1,
@@ -4785,10 +4785,10 @@ end)()
 		PaddingLeft = UDim.new(0, 14),
 		PaddingRight = UDim.new(0, 14),
 	}, wpNameInput)
-	wpNameInput.Focused:Connect;(function()
+	wpNameInput.Focused:Connect(function()
 		Tween(wpNameStroke, 0.15, { Transparency = 0.1, Color = Theme.Accent })
 	end)
-	wpNameInput.FocusLost:Connect;(function()
+	wpNameInput.FocusLost:Connect(function()
 		Tween(wpNameStroke, 0.2, { Transparency = 0.6, Color = Theme.Stroke })
 	end)
 
@@ -4912,8 +4912,8 @@ end)()
 			Notify("Update", "Sem fonte configurada (rode pelo launcher).", "danger")
 			return
 		end
-		task.spawn;(function()
-			local ok, body = pcall;(function()
+		task.spawn(function()
+			local ok, body = pcall(function()
 				return game:HttpGet(UPDATE_URL, true)
 			end)
 			if not ok or type(body) ~= "string" then
@@ -4943,7 +4943,7 @@ end)()
 			if Options.NoFog then
 				Options.NoFog.Set(true, true)
 			end
-			pcall;(function()
+			pcall(function()
 				setfpscap(240)
 			end)
 			Notify("Performance", "Fullbright + sem neblina ativos, FPS liberado ate 240.", "success")
@@ -4954,7 +4954,7 @@ end)()
 			if Options.NoFog then
 				Options.NoFog.Set(false, true)
 			end
-			pcall;(function()
+			pcall(function()
 				setfpscap(60)
 			end)
 			Notify("Performance", "Graficos restaurados ao padrao.", nil)
@@ -4963,7 +4963,7 @@ end)()
 
 	AddButton(page, "Remover texturas do mapa", nil, function()
 		Notify("Performance", "Removendo texturas... o jogo pode engasgar por alguns segundos.", nil)
-		task.spawn;(function()
+		task.spawn(function()
 			local removed = 0
 			local processed = 0
 			for _, obj in ipairs(workspace:GetDescendants()) do
@@ -5032,19 +5032,19 @@ end)()
 
 		KeybindRows[optName] = pill
 
-		row.MouseEnter:Connect;(function()
+		row.MouseEnter:Connect(function()
 			Tween(row, 0.15, { BackgroundColor3 = Theme.CardHover })
 			Tween(kbHint, 0.15, { TextTransparency = 1 })
 		end)
-		row.MouseLeave:Connect;(function()
+		row.MouseLeave:Connect(function()
 			Tween(row, 0.18, { BackgroundColor3 = Theme.Card })
 			Tween(kbHint, 0.15, { TextTransparency = 0 })
 		end)
-		row.MouseButton1Click:Connect;(function()
+		row.MouseButton1Click:Connect(function()
 			Ripple(row, UserInputService:GetMouseLocation())
 			StartKeyCapture(optName)
 		end)
-		row.MouseButton2Click:Connect;(function()
+		row.MouseButton2Click:Connect(function()
 			SetKeybind(optName, nil)
 		end)
 	end
@@ -5305,7 +5305,7 @@ end)()
 	AddButton(page, "Importar perfil (colar codigo)", nil, function()
 		importOverlay.Visible = true
 		importInput.Text = ""
-		task.defer;(function()
+		task.defer(function()
 			importInput:CaptureFocus()
 		end)
 	end)
@@ -5402,12 +5402,12 @@ end)()
 	}, importCard)
 	Corner(importOk, 8)
 
-	importCancel.MouseButton1Click:Connect;(function()
+	importCancel.MouseButton1Click:Connect(function()
 		importOverlay.Visible = false
 	end)
 
-	importOk.MouseButton1Click:Connect;(function()
-		local ok, decoded = pcall;(function()
+	importOk.MouseButton1Click:Connect(function()
+		local ok, decoded = pcall(function()
 			return HttpService:JSONDecode(importInput.Text)
 		end)
 		if not ok or type(decoded) ~= "table" then
@@ -5471,7 +5471,7 @@ end)()
 end)()
 
 for name in pairs(Pages) do
-	Pages[name].Button.MouseButton1Click:Connect;(function()
+	Pages[name].Button.MouseButton1Click:Connect(function()
 		SelectTab(name)
 	end)
 end
@@ -5480,13 +5480,13 @@ SelectTab("Player")
 
 local function Unload()
 	for _, conn in ipairs(Connections) do
-		pcall;(function() conn:Disconnect() end)
+		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(Connections)
 	HubAlive = false
 	table.clear(AdmMon.Info)
 	AdmMon.OnUpdate = nil
-	pcall;(function() blur:Destroy() end)
+	pcall(function() blur:Destroy() end)
 	Lighting.Brightness = Originals.Brightness
 	Lighting.FogEnd = Originals.FogEnd
 	Lighting.FogStart = Originals.FogStart
@@ -5502,7 +5502,7 @@ local function Unload()
 		hum.UseJumpPower = true
 		hum.JumpPower = 50
 	end
-	pcall;(function()
+	pcall(function()
 		RunService:UnbindFromRenderStep("LegitHub_ESP")
 	end)
 	StopFly()
@@ -5510,15 +5510,15 @@ local function Unload()
 	StopReach()
 	StopSpectate(true)
 	Flags.Aimbot = false
-	pcall;(function()
+	pcall(function()
 		RunService:UnbindFromRenderStep(AIMBOT_RENDER)
 	end)
 	if fovDrawing then
-		pcall;(function() fovDrawing:Remove() end)
+		pcall(function() fovDrawing:Remove() end)
 		fovDrawing = nil
 	end
 	Flags.WaypointESP = false
-	pcall;(function()
+	pcall(function()
 		RunService:UnbindFromRenderStep(wpEspBind)
 	end)
 	ClearWpDrawings()
@@ -5684,14 +5684,14 @@ Create("TextLabel", {
 
 splashLogo.GroupTransparency = 1
 splashLogo.Size = UDim2.fromOffset(40, 40)
-task.defer;(function()
+task.defer(function()
 	Tween(splashLogo, 0.55, { GroupTransparency = 0 }, Enum.EasingStyle.Quart)
 	Tween(splashLogo, 0.6, { Size = UDim2.fromOffset(68, 68) }, Enum.EasingStyle.Back)
 	Tween(splashBarFill, 1.7, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 end)
 
 task.delay(2.1, function()
-	Tween(splash, 0.45, { GroupTransparency = 1 }).Completed:Once;(function()
+	Tween(splash, 0.45, { GroupTransparency = 1 }).Completed:Once(function()
 		splash:Destroy()
 
 		root.Visible = true
