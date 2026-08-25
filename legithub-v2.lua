@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.3"
+local VERSION = "v3.4"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -666,6 +666,7 @@ local TAB_ICONS = {
 	Visuals = "👁",
 	Mundo = "🌍",
 	Spy = "📡",
+	Farm = "🌾",
 	Misc = "🛠",
 }
 
@@ -842,7 +843,7 @@ local function SelectTab(name)
 	end)
 end
 
-for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Spy", "Misc" }) do
+for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Spy", "Farm", "Misc" }) do
 	MakePage(tabName, i)
 end
 
@@ -5558,6 +5559,445 @@ local function _iife_spy()
 end
 _iife_spy()
 
+-- ============ Farm Auto-Collect Engine ============
+do
+	local LocalPlayer = Players.LocalPlayer
+	local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local Root = Character:WaitForChild("HumanoidRootPart")
+	local Humanoid = Character:WaitForChild("Humanoid")
+
+	local function UpdateRoot()
+		Character = LocalPlayer.Character
+		if Character then
+			Root = Character:FindFirstChild("HumanoidRootPart")
+			Humanoid = Character:FindFirstChild("Humanoid")
+		end
+	end
+	LocalPlayer.CharacterAdded:Connect(function(char)
+		Character = char
+		Root = char:WaitForChild("HumanoidRootPart")
+		Humanoid = char:WaitForChild("Humanoid")
+	end)
+
+	local SUPPORTED_GAMES = {
+		[2753915549] = { name = "Blox Fruits", icon = "\xF0\x9F\x8D\x8E" },
+		[8737899170] = { name = "Pet Simulator 99", icon = "\xF0\x9F\x90\xBE" },
+		[1537690962] = { name = "Bee Swarm Simulator", icon = "\xF0\x9F\x90\x9D" },
+		[2819351043] = { name = "Jailbreak", icon = "\xF0\x9F\x94\xA3" },
+	}
+	local detectedGame = SUPPORTED_GAMES[game.PlaceId]
+	local currentGameName = detectedGame and detectedGame.name or "Generic"
+	local currentGameIcon = detectedGame and detectedGame.icon or "\xE2\x9A\x99"
+
+	-- === Blox Fruits Auto-Farm ===
+	local BF = {
+		farming = false, acceptQuest = false, collectFruits = false,
+		attackRange = 150, distance = 5, loop, fruitLoop,
+	}
+
+	local function BFFindQuestGiver()
+		for _, npc in ipairs(workspace:FindFirstChild("NPCs") and workspace.NPCs:GetChildren() or {}) do
+			if npc.Name:find("Quest") or npc.Name:find("QuestGiver") or npc.Name:find("Dealer") then
+				return npc
+			end
+		end
+		for _, npc in ipairs(workspace:GetDescendants()) do
+			if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") and
+				(npc.Name:find("Quest") or npc.Name:find("Blox Fruit Dealer")) then
+				return npc
+			end
+		end
+		return nil
+	end
+
+	local function BFFindMobs()
+		local mobs = {}
+		for _, mob in ipairs(workspace:FindFirstChild("Enemies") and workspace.Enemies:GetChildren() or {}) do
+			local hum = mob:FindFirstChildOfClass("Humanoid")
+			if hum and hum.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+				table.insert(mobs, mob)
+			end
+		end
+		return mobs
+	end
+
+	local function BFAutoFarm()
+		if not BF.farming or not Root then return end
+		UpdateRoot()
+		local mobs = BFFindMobs()
+		if #mobs == 0 then return end
+
+		table.sort(mobs, function(a, b)
+			return (a.HumanoidRootPart.Position - Root.Position).Magnitude <
+				(b.HumanoidRootPart.Position - Root.Position).Magnitude
+		end)
+
+		local nearest = mobs[1]
+		local dist = (nearest.HumanoidRootPart.Position - Root.Position).Magnitude
+
+		if dist > BF.distance then
+			Root.CFrame = nearest.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.distance)
+		end
+
+		if dist <= BF.distance + 5 then
+			Root.CFrame = nearest.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.distance)
+			local tool = Character:FindFirstChildOfClass("Tool")
+			if tool and tool:FindFirstChild("RemoteEvent") then
+				pcall(function() tool.RemoteEvent:FireServer(nearest) end)
+			end
+			if Humanoid then Humanoid:ChangeState(Enum.HumanoidStateType.Running) end
+		end
+	end
+
+	local function BFAutoAcceptQuest()
+		if not BF.acceptQuest then return end
+		local quest = BFFindQuestGiver()
+		if quest then
+			pcall(function()
+				Root.CFrame = quest.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+			end)
+		end
+	end
+
+	local function BFAutoCollectFruits()
+		if not BF.collectFruits then return end
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
+				local dist = (obj.Handle.Position - Root.Position).Magnitude
+				if dist < 200 then
+					pcall(function()
+						Root.CFrame = obj.Handle.CFrame
+						wait(0.2)
+					end)
+				end
+			end
+		end
+	end
+
+	function BFStop()
+		BF.farming = false
+		if BF.loop then BF.loop:Disconnect() BF.loop = nil end
+		if BF.fruitLoop then BF.fruitLoop:Disconnect() BF.fruitLoop = nil end
+		Notify("Blox Fruits", "Auto-farm pausado.", nil)
+	end
+
+	local function BFStart()
+		BF.farming = true
+		BF.loop = RunService.Heartbeat:Connect(function()
+			pcall(BFAutoFarm)
+			pcall(BFAutoAcceptQuest)
+		end)
+		BF.fruitLoop = RunService.Heartbeat:Connect(function()
+			pcall(BFAutoCollectFruits)
+		end)
+		Notify("Blox Fruits", "Auto-farm ativado! Coletando moedas, XP e frutas automaticamente.", "success")
+	end
+
+	-- === Pet Simulator 99 Auto-Collect ===
+	local PS99 = {
+		farming = false, autoHatch = false, collectGems = false,
+		collectRange = 50, loop, gemLoop,
+	}
+
+	local function PS99CollectCoins()
+		if not PS99.farming or not Root then return end
+		UpdateRoot()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (obj.Name:find("Coin") or obj.Name:find("coin")) then
+				if (obj.Position - Root.Position).Magnitude < PS99.collectRange then
+					pcall(function()
+						Root.CFrame = obj.CFrame
+						wait(0.1)
+					end)
+				end
+			end
+		end
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (obj.Name:find("Diamond") or obj.Name:find("gem")) then
+				if PS99.collectGems and (obj.Position - Root.Position).Magnitude < PS99.collectRange then
+					pcall(function()
+						Root.CFrame = obj.CFrame
+						wait(0.1)
+					end)
+				end
+			end
+		end
+	end
+
+	local function PS99AutoHatch()
+		if not PS99.autoHatch then return end
+		for _, egg in ipairs(workspace:GetDescendants()) do
+			if egg:IsA("BasePart") and (egg.Name:find("Egg") or egg.Name:find("egg")) then
+				if (egg.Position - Root.Position).Magnitude < 30 then
+					pcall(function()
+						Root.CFrame = egg.CFrame
+						wait(0.3)
+					end)
+				end
+			end
+		end
+	end
+
+	function PS99Stop()
+		PS99.farming = false
+		if PS99.loop then PS99.loop:Disconnect() PS99.loop = nil end
+		if PS99.gemLoop then PS99.gemLoop:Disconnect() PS99.gemLoop = nil end
+		Notify("Pet Simulator 99", "Auto-collect pausado.", nil)
+	end
+
+	local function PS99Start()
+		PS99.farming = true
+		PS99.loop = RunService.Heartbeat:Connect(function()
+			pcall(PS99CollectCoins)
+			pcall(PS99AutoHatch)
+		end)
+		Notify("Pet Simulator 99", "Auto-collect ativado! Coletando moedas e diamantes.", "success")
+	end
+
+	-- === Bee Swarm Simulator Auto-Collect ===
+	local BSS = {
+		farming = false, autoBoost = false, collectTokens = false,
+		collectRange = 100, loop,
+	}
+
+	local function BSSCollectPollen()
+		if not BSS.farming or not Root then return end
+		UpdateRoot()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (obj.Name:find("Pollen") or obj.Name:find("pollen")) then
+				if (obj.Position - Root.Position).Magnitude < BSS.collectRange then
+					pcall(function()
+						Root.CFrame = obj.CFrame
+						wait(0.15)
+					end)
+				end
+			end
+		end
+	end
+
+	local function BSSCollectTokens()
+		if not BSS.collectTokens then return end
+		for _, token in ipairs(workspace:GetDescendants()) do
+			if token:IsA("BasePart") and (token.Name:find("Token") or token.Name:find("token")) then
+				if (token.Position - Root.Position).Magnitude < BSS.collectRange then
+					pcall(function()
+						Root.CFrame = token.CFrame
+						wait(0.15)
+					end)
+				end
+			end
+		end
+	end
+
+	function BSSStop()
+		BSS.farming = false
+		if BSS.loop then BSS.loop:Disconnect() BSS.loop = nil end
+		Notify("Bee Swarm Simulator", "Auto-collect pausado.", nil)
+	end
+
+	local function BSSStart()
+		BSS.farming = true
+		BSS.loop = RunService.Heartbeat:Connect(function()
+			pcall(BSSCollectPollen)
+			pcall(BSSCollectTokens)
+		end)
+		Notify("Bee Swarm Simulator", "Auto-collect ativado! Coletando pollen e tokens.", "success")
+	end
+
+	-- === Jailbreak Auto-Collect ===
+	local JB = {
+		farming = false, autoRob = false,
+		collectRange = 200, loop,
+	}
+
+	local function JBCollectMoney()
+		if not JB.farming or not Root then return end
+		UpdateRoot()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (obj.Name:find("Money") or obj.Name:find("Cash") or obj.Name:find("Bag")) then
+				if (obj.Position - Root.Position).Magnitude < JB.collectRange then
+					pcall(function()
+						Root.CFrame = obj.CFrame
+						wait(0.15)
+					end)
+				end
+			end
+		end
+	end
+
+	local function JBRobberyCheck()
+		if not JB.autoRob then return end
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (obj.Name:find("Rob") or obj.Name:find("rob") or obj.Name:find("Loot")) then
+				if (obj.Position - Root.Position).Magnitude < JB.collectRange then
+					pcall(function()
+						Root.CFrame = obj.CFrame
+						wait(0.2)
+					end)
+				end
+			end
+		end
+	end
+
+	function JBStop()
+		JB.farming = false
+		if JB.loop then JB.loop:Disconnect() JB.loop = nil end
+		Notify("Jailbreak", "Auto-collect pausado.", nil)
+	end
+
+	local function JBStart()
+		JB.farming = true
+		JB.loop = RunService.Heartbeat:Connect(function()
+			pcall(JBCollectMoney)
+			pcall(JBRobberyCheck)
+		end)
+		Notify("Jailbreak", "Auto-collect ativado! Coletando dinheiro e roubando automaticamente.", "success")
+	end
+
+	-- === Stop All Farms ===
+	local function StopAllFarms()
+		pcall(BFStop)
+		pcall(PS99Stop)
+		pcall(BSSStop)
+		pcall(JBStop)
+	end
+
+	-- === Farm Tab UI ===
+	local function _iife_farm()
+		local page = Pages["Farm"]
+
+		Paragraph(page, "Farm " .. currentGameIcon .. " " .. currentGameName,
+			"Auto-farm inteligente que detecta o jogo atual. O sistema procura moedas, itens, NPCs e coleta automaticamente usando movimentacao segura do personagem.")
+
+		SectionLabel(page, "JOGO DETECTADO")
+
+		if detectedGame then
+			Paragraph(page, currentGameIcon .. " " .. currentGameName,
+				"PlaceId: " .. game.PlaceId .. " | Modo auto-farm ativo. Selecione as funcoes desejadas abaixo e ative o Farm Principal.")
+		else
+			Paragraph(page, "Jogo nao suportado",
+				"PlaceId: " .. game.PlaceId .. " | Este jogo nao possui farm especializado. O LegitHub continua funcionando para as outras abas. Jogos suportados: Blox Fruits, Pet Simulator 99, Bee Swarm Simulator, Jailbreak.")
+		end
+
+		if game.PlaceId == 2753915549 then
+			SectionLabel(page, "BLOX FRUITS")
+
+			Paragraph(page, "\xF0\x9F\x8D\x8E Blox Fruits Farm",
+				"Detectamos que voce esta em Blox Fruits! Configure o farm abaixo. O sistema teleporta para os mobs mais proximos, aceita quests e coleta frutas automaticamente. Range ajustavel para evitar kicks.")
+
+			AddToggle(page, "BFAutoFarm", "Ativar Auto-Farm (Mobs + Quest)", false, function(state)
+				if state then BFStart() else BFStop() end
+			end)
+
+			AddToggle(page, "BFAcceptQuest", "Auto-Aceitar Quest", false, function(state)
+				BF.acceptQuest = state
+			end)
+
+			AddToggle(page, "BFCollectFruits", "Auto-Coletar Frutas", false, function(state)
+				BF.collectFruits = state
+			end)
+
+			AddSlider(page, "BFRange", "Range de Ataque", 10, 300, 150, function(v)
+				BF.attackRange = v
+			end, " studs")
+
+			AddSlider(page, "BFDist", "Distancia dos Mobs", 1, 20, 5, function(v)
+				BF.distance = v
+			end, " studs")
+
+		elseif game.PlaceId == 8737899170 then
+			SectionLabel(page, "PET SIMULATOR 99")
+
+			Paragraph(page, "\xF0\x9F\x90\xBE Pet Simulator 99 Farm",
+				"Detectamos que voce esta em Pet Simulator 99! Coleta moedas, diamantes e faz auto-hatch de ovos. Range ajustavel para pegar tudo ao redor.")
+
+			AddToggle(page, "PS99AutoFarm", "Ativar Auto-Collect (Moedas)", false, function(state)
+				if state then PS99Start() else PS99Stop() end
+			end)
+
+			AddToggle(page, "PS99CollectGems", "Auto-Coletar Diamantes", false, function(state)
+				PS99.collectGems = state
+			end)
+
+			AddToggle(page, "PS99AutoHatch", "Auto-Hatch Ovos", false, function(state)
+				PS99.autoHatch = state
+			end)
+
+			AddSlider(page, "PS99Range", "Range de Coleta", 10, 300, 50, function(v)
+				PS99.collectRange = v
+			end, " studs")
+
+		elseif game.PlaceId == 1537690962 then
+			SectionLabel(page, "BEE SWARM SIMULATOR")
+
+			Paragraph(page, "\xF0\x9F\x90\x9D Bee Swarm Farm",
+				"Detectamos que voce esta em Bee Swarm Simulator! Coleta pollen dos campos, tokens especiais e itens de boost automaticamente.")
+
+			AddToggle(page, "BSSAutoFarm", "Ativar Auto-Collect (Pollen)", false, function(state)
+				if state then BSSStart() else BSSStop() end
+			end)
+
+			AddToggle(page, "BSSTokenCollect", "Auto-Coletar Tokens", false, function(state)
+				BSS.collectTokens = state
+			end)
+
+			AddToggle(page, "BSSAutoBoost", "Auto-Boost no Campo", false, function(state)
+				BSS.autoBoost = state
+			end)
+
+			AddSlider(page, "BSSRange", "Range de Coleta", 10, 300, 100, function(v)
+				BSS.collectRange = v
+			end, " studs")
+
+		elseif game.PlaceId == 2819351043 then
+			SectionLabel(page, "JAILBREAK")
+
+			Paragraph(page, "\xF0\x9F\x94\xA3 Jailbreak Farm",
+				"Detectamos que voce esta em Jailbreak! Coleta dinheiro automaticamente e faz roubos. Funciona para todos os times (policia/criminoso).")
+
+			AddToggle(page, "JBAutoFarm", "Ativar Auto-Collect (Dinheiro)", false, function(state)
+				if state then JBStart() else JBStop() end
+			end)
+
+			AddToggle(page, "JBAutoRob", "Auto-Roubo", false, function(state)
+				JB.autoRob = state
+			end)
+
+			AddSlider(page, "JBRange", "Range de Coleta", 10, 500, 200, function(v)
+				JB.collectRange = v
+			end, " studs")
+
+		else
+			SectionLabel(page, "FARM GENERICO")
+
+			Paragraph(page, "\xE2\x9A\xA1 Modo Generico",
+				"Nenhum jogo especializado detectado. O farm generico tenta coletar itens soltos ao redor. Para melhores resultados, use em um jogo suportado.")
+
+			local genericFarming = false
+			local genericLoop = nil
+
+			AddButton(page, "\xE2\x9D\x8C Nenhum jogo suportado para farm", Color3.fromRGB(120, 120, 120), function() end)
+
+			Paragraph(page, "Jogos suportados:",
+				"1. Blox Fruits (auto-farm mobs + quest + frutas)\n2. Pet Simulator 99 (auto-collect moedas + diamantes)\n3. Bee Swarm Simulator (auto-collect pollen + tokens)\n4. Jailbreak (auto-collect dinheiro + roubos)")
+		end
+
+		SectionLabel(page, "MODO SEGURO")
+
+		Paragraph(page, "\xE2\x9A\xA0\xEF\xB8\x8F Seguranca",
+			"Todos os farms usam teleportacao suave do personagem (sem teleporte instantaneo). O range e ajustavel para manter a velocidade do farm dentro de limites seguros. Ajuste o range conforme sua preferencia.")
+
+		AddButton(page, "\xE2\x9D\xBA\xEF\xB8\x8F Parar Todos os Farms", Color3.fromRGB(255, 85, 85), function()
+			StopAllFarms()
+			Notify("Farm", "Todos os farms foram parados.", "danger")
+		end)
+	end
+
+	_iife_farm()
+end
+
+-- ============ fim Farm ============
+
 local function _iife_misc()
 	local page = Pages["Misc"]
 
@@ -6196,6 +6636,10 @@ local function Unload()
 	RSStop()
 	table.clear(RemoteSpyLogs)
 	Flags.RemoteSpy = false
+	pcall(function() BFStop() end)
+	pcall(function() PS99Stop() end)
+	pcall(function() BSSStop() end)
+	pcall(function() JBStop() end)
 	Flags.Aimbot = false
 	pcall(function()
 		RunService:UnbindFromRenderStep(AIMBOT_RENDER)
