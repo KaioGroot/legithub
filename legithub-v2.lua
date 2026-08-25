@@ -662,6 +662,7 @@ local function Ripple(button, inputPos)
 end
 
 local TAB_ICONS = {
+	Aimbot = "🎯",
 	Player = "🏃",
 	Visuals = "👁",
 	Mundo = "🌍",
@@ -841,7 +842,7 @@ local function SelectTab(name)
 	end)
 end
 
-for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Misc" }) do
+for i, tabName in ipairs({ "Aimbot", "Player", "Visuals", "Mundo", "Misc" }) do
 	MakePage(tabName, i)
 end
 
@@ -1750,6 +1751,7 @@ end
 
 -- ============ Motor de teclas de atalho ============
 local KEYBINDABLE = {
+	{ "Aimbot", "Aimbot" },
 	{ "Hitbox", "Hitbox" },
 	{ "Reach", "Alcance" },
 	{ "Noclip", "Noclip" },
@@ -2637,6 +2639,16 @@ Flags.ESPTeamColors = false
 Flags.ESPTeamCheck = false
 Flags.ESPVisibilityColor = false
 	Flags.ESPMaxDistance = 1000
+
+	-- ============ Aimbot ============
+	Flags.Aimbot = false
+	Flags.AimbotFOV = 150
+	Flags.AimbotSmooth = 5
+	Flags.AimbotPart = "Head"
+	Flags.AimbotTeamCheck = false
+	Flags.AimbotVisCheck = true
+	Flags.AimbotFOVCircle = true
+	Flags.AimbotMode = "Sempre ativo"
 
 	-- ============ Monitor de ADMs ============
 	local HubAlive = true
@@ -3627,6 +3639,119 @@ if espSupported then
 		end
 	end)
 end
+-- ============ Aimbot ============
+local fovDrawing = nil
+if Drawing then
+	pcall(function()
+		fovDrawing = Drawing.new("Circle")
+		fovDrawing.Thickness = 1.5
+		fovDrawing.NumSides = 80
+		fovDrawing.Radius = 150
+		fovDrawing.Filled = false
+		fovDrawing.Visible = false
+		fovDrawing.Color = Theme.Accent
+		fovDrawing.Transparency = 0.6
+		fovDrawing.ZIndex = 2
+	end)
+end
+
+local AIMBOT_RENDER = "LegitHub_Aimbot"
+
+local function GetAimbotTarget()
+	local cam = workspace.CurrentCamera
+	if not cam then return nil end
+
+	local center = cam.ViewportSize / 2
+	local maxR = Flags.AimbotFOV
+	local best = nil
+	local bestDist = maxR
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local ch = plr.Character
+			local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+			local pt = ch and ch:FindFirstChild(Flags.AimbotPart)
+
+			if hum and hum.Health > 0 and pt then
+				local skip = false
+
+				if Flags.AimbotTeamCheck and LocalPlayer.Team and plr.Team == LocalPlayer.Team then
+					skip = true
+				end
+
+				if not skip and Flags.AimbotVisCheck and ch then
+					local camPos = cam.CFrame.Position
+					local dir = pt.Position - camPos
+					if dir.Magnitude > 2 then
+						local rp = RaycastParams.new()
+						rp.FilterType = Enum.RaycastFilterType.Exclude
+						rp.FilterDescendantsInstances = { LocalPlayer.Character, ch }
+						local hit = workspace:Raycast(camPos, dir, rp)
+						if hit and not hit.Instance:IsDescendantOf(ch) then
+							skip = true
+						end
+					end
+				end
+
+				if not skip then
+					local sp, vis = cam:WorldToViewportPoint(pt.Position)
+					if vis and sp.Z > 0 then
+						local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+						if d < bestDist then
+							best = plr
+							bestDist = d
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return best
+end
+
+pcall(function()
+	RunService:UnbindFromRenderStep(AIMBOT_RENDER)
+end)
+
+RunService:BindToRenderStep(AIMBOT_RENDER, Enum.RenderPriority.Camera.Value + 1, function()
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+
+	if fovDrawing then
+		fovDrawing.Visible = Flags.Aimbot and Flags.AimbotFOVCircle
+		if fovDrawing.Visible then
+			fovDrawing.Position = cam.ViewportSize / 2
+			fovDrawing.Radius = Flags.AimbotFOV
+			fovDrawing.Color = Theme.Accent
+		end
+	end
+
+	if not Flags.Aimbot then return end
+
+	if Flags.AimbotMode == "Botao direito" then
+		local ok, held = pcall(function()
+			return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+		end)
+		if not (ok and held) then return end
+	end
+
+	local target = GetAimbotTarget()
+	if not target then return end
+
+	local ch = target.Character
+	local pt = ch and ch:FindFirstChild(Flags.AimbotPart)
+	if not pt then return end
+
+	local myChar = LocalPlayer.Character
+	local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
+
+	local aimCF = CFrame.lookAt(cam.CFrame.Position, pt.Position)
+	local s = math.clamp(Flags.AimbotSmooth, 1, 20)
+	cam.CFrame = cam.CFrame:Lerp(aimCF, 1 / s)
+end)
+
 local mouse = LocalPlayer:GetMouse()
 
 local minimized = false
@@ -4491,6 +4616,54 @@ task.spawn(function()
 end)()
 
 ;(function()
+	local page = Pages["Aimbot"]
+
+	SectionLabel(page, "Geral")
+
+	AddToggle(page, "Aimbot", "Aimbot (mirar automaticamente)", false, function(state)
+		Flags.Aimbot = state
+		if state then
+			Notify("Aimbot", "Aimbot ativado. Mire na direcao do alvo.", "success")
+		else
+			Notify("Aimbot", "Aimbot desativado.", nil)
+		end
+	end)
+
+	AddToggle(page, "AimbotFOVCircle", "Mostrar circulo FOV", true, function(state)
+		Flags.AimbotFOVCircle = state
+	end)
+
+	AddSlider(page, "AimbotFOV", "Raio do FOV", 50, 500, 150, function(v)
+		Flags.AimbotFOV = v
+	end)
+
+	AddSlider(page, "AimbotSmooth", "Suavidade", 1, 20, 5, function(v)
+		Flags.AimbotSmooth = v
+	end)
+
+	AddDropdown(page, "AimbotPart", "Parte do corpo", { "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, "Head", function(v)
+		Flags.AimbotPart = v
+	end)
+
+	AddDropdown(page, "AimbotMode", "Modo de ativacao", { "Sempre ativo", "Botao direito" }, "Sempre ativo", function(v)
+		Flags.AimbotMode = v
+	end)
+
+	SectionLabel(page, "Filtros")
+
+	AddToggle(page, "AimbotTeamCheck", "Ignorar aliados (mesmo time)", false, function(state)
+		Flags.AimbotTeamCheck = state
+	end)
+
+	AddToggle(page, "AimbotVisCheck", "So mira em alvos visiveis (sem parede)", true, function(state)
+		Flags.AimbotVisCheck = state
+	end)
+
+	Paragraph(page, "Dica",
+		"Ajuste a suavidade para mirar de forma mais natural (1 = snap instantaneo, 20 = muito lento). Use o modo 'Botao direito' para mirar so quando segurar RMB. 'Head' e a parte mais precisa, 'HumanoidRootPart' e mais estavel.")
+end)()
+
+;(function()
 	local page = Pages["Visuals"]
 
 	SectionLabel(page, "Camera")
@@ -5324,6 +5497,14 @@ local function Unload()
 	StopHitbox()
 	StopReach()
 	StopSpectate(true)
+	Flags.Aimbot = false
+	pcall(function()
+		RunService:UnbindFromRenderStep(AIMBOT_RENDER)
+	end)
+	if fovDrawing then
+		pcall(function() fovDrawing:Remove() end)
+		fovDrawing = nil
+	end
 	Flags.WaypointESP = false
 	pcall(function()
 		RunService:UnbindFromRenderStep(wpEspBind)
