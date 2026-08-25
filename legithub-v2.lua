@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.5"
+local VERSION = "v3.6"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -5592,33 +5592,13 @@ do
 	-- === Blox Fruits Auto-Farm + Auto-Attack ===
 	local VIM = game:GetService("VirtualInputManager")
 	local StarterGui = game:GetService("StarterGui")
+	local TweenService = game:GetService("TweenService")
 
 	local BF = {
 		farming = false, acceptQuest = false, collectFruits = false,
-		autoAttack = true, attackRange = 150, distance = 3, attackSpeed = 0.15,
-		loop, fruitLoop, attackLoop,
+		autoAttack = true, attackRange = 100, distance = 4, attackSpeed = 0.3,
+		moveDelay = 0.5, currentTarget = nil, lastAttack = 0,
 	}
-
-	local function BFFindQuestGiver()
-		local folders = { "NPCs", "Quests" }
-		for _, folderName in ipairs(folders) do
-			local folder = workspace:FindFirstChild(folderName)
-			if folder then
-				for _, npc in ipairs(folder:GetChildren()) do
-					if npc.Name:find("Quest") or npc.Name:find("QuestGiver") or npc.Name:find("Dealer") then
-						return npc
-					end
-				end
-			end
-		end
-		for _, npc in ipairs(workspace:GetDescendants()) do
-			if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") and
-				(npc.Name:find("Quest") or npc.Name:find("Blox Fruit Dealer")) then
-				return npc
-			end
-		end
-		return nil
-	end
 
 	local function BFFindMobs()
 		local mobs = {}
@@ -5638,7 +5618,7 @@ do
 			for _, mob in ipairs(workspace:GetDescendants()) do
 				if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
 					local hum = mob:FindFirstChildOfClass("Humanoid")
-					if hum.Health > 0 and mob ~= Character and mob ~= LocalPlayer.Character then
+					if hum.Health > 0 and mob ~= Character then
 						table.insert(mobs, mob)
 					end
 				end
@@ -5648,7 +5628,10 @@ do
 	end
 
 	local function BFEquipBestWeapon()
-		if not Character then return nil end
+		if not Character or not Root then return nil end
+		if Character:FindFirstChildOfClass("Tool") then
+			return Character:FindFirstChildOfClass("Tool")
+		end
 		local bestTool = nil
 		local bestLevel = 0
 		for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
@@ -5668,91 +5651,112 @@ do
 				end
 			end
 		end
-		if bestTool and not Character:FindFirstChildOfClass("Tool") then
-			pcall(function()
-				Humanoid:EquipTool(bestTool)
-			end)
-			wait(0.1)
+		if bestTool then
+			pcall(function() Humanoid:EquipTool(bestTool) end)
+			wait(0.15)
 		end
 		return Character:FindFirstChildOfClass("Tool")
 	end
 
+	local function BFSmoothMoveTo(targetCFrame, duration)
+		if not Root then return end
+		duration = duration or 0.3
+		local startPos = Root.CFrame
+		local dist = (targetCFrame.Position - startPos.Position).Magnitude
+		if dist < 2 then return end
+		local tween = TweenService:Create(Root, TweenInfo.new(duration, Enum.EasingStyle.Linear), { CFrame = targetCFrame })
+		tween:Play()
+		tween.Completed:Wait()
+	end
+
 	local function BFAttackMob(mob)
 		if not mob or not mob:FindFirstChild("HumanoidRootPart") then return end
+		if not Root then return end
+
+		local mobRoot = mob.HumanoidRootPart
+		local mobHum = mob:FindFirstChildOfClass("Humanoid")
+		if not mobHum or mobHum.Health <= 0 then return end
+
+		local dist = (mobRoot.Position - Root.Position).Magnitude
+
+		if dist > BF.attackRange then
+			local targetCF = mobRoot.CFrame * CFrame.new(0, 0, BF.distance)
+			BFSmoothMoveTo(targetCF, 0.25)
+		end
 
 		local tool = Character:FindFirstChildOfClass("Tool")
-
-		Root.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.distance)
-
 		if not tool then
 			tool = BFEquipBestWeapon()
 		end
-
 		if not tool then return end
 
-		pcall(function()
-			tool:Activate()
-		end)
+		local now = tick()
+		if now - BF.lastAttack < BF.attackSpeed then return end
+		BF.lastAttack = now
 
-		pcall(function()
-			VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-			wait(0.02)
-			VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-		end)
+		pcall(function() tool:Activate() end)
 
 		pcall(function()
 			if tool:FindFirstChild("RemoteEvent") then
 				tool.RemoteEvent:FireServer(mob)
 			elseif tool:FindFirstChild("Attack") then
 				tool.Attack:FireServer(mob)
-			elseif tool:FindFirstChild("DealDamage") then
-				tool.DealDamage:FireServer(mob)
 			end
 		end)
 
 		pcall(function()
-			local combatRemote = ReplicatedStorage:FindFirstChild("Combat") or
-				ReplicatedStorage:FindFirstChild("Events")
-			if combatRemote and combatRemote:FindFirstChild("Attack") then
-				combatRemote.Attack:FireServer(mob)
-			end
+			VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+			VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 		end)
 	end
 
-	local function BFAutoFarm()
+	local function BFFindQuestGiver()
+		local folders = { "NPCs", "Quests" }
+		for _, folderName in ipairs(folders) do
+			local folder = workspace:FindFirstChild(folderName)
+			if folder then
+				for _, npc in ipairs(folder:GetChildren()) do
+					if npc.Name:find("Quest") or npc.Name:find("QuestGiver") or npc.Name:find("Dealer") then
+						return npc
+					end
+				end
+			end
+		end
+		return nil
+	end
+
+	local function BFAutoFarmTick()
 		if not BF.farming or not Root then return end
 		UpdateRoot()
+		if not Root then return end
+
+		BFEquipBestWeapon()
+
 		local mobs = BFFindMobs()
-		if #mobs == 0 then return end
+		if #mobs == 0 then
+			wait(0.5)
+			return
+		end
 
 		table.sort(mobs, function(a, b)
 			local aDist = (a.HumanoidRootPart.Position - Root.Position).Magnitude
 			local bDist = (b.HumanoidRootPart.Position - Root.Position).Magnitude
-			local aHP = a:FindFirstChildOfClass("Humanoid") and a:FindFirstChildOfClass("Humanoid").Health or 0
-			local bHP = b:FindFirstChildOfClass("Humanoid") and b:FindFirstChildOfClass("Humanoid").Health or 0
-			if aDist < BF.attackRange and bDist >= BF.attackRange then return true end
-			if bDist < BF.attackRange and aDist >= BF.attackRange then return false end
-			if aDist < BF.attackRange and bDist < BF.attackRange then
-				if BF.targetLowestHP then
-					return aHP < bHP
-				end
-			end
 			return aDist < bDist
 		end)
 
 		local nearest = mobs[1]
 		local dist = (nearest.HumanoidRootPart.Position - Root.Position).Magnitude
 
-		if dist > BF.attackRange then
-			Root.CFrame = nearest.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.attackRange * 0.5)
-			wait(0.1)
+		if dist > BF.attackRange * 1.5 then
+			local targetCF = nearest.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.attackRange * 0.6)
+			BFSmoothMoveTo(targetCF, 0.5)
+			wait(0.2)
 			return
 		end
 
-		BFAttackMob(nearest)
-
 		if BF.autoAttack then
 			for _, mob in ipairs(mobs) do
+				if not BF.farming then break end
 				if mob and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
 					local mDist = (mob.HumanoidRootPart.Position - Root.Position).Magnitude
 					if mDist <= BF.attackRange and mob:FindFirstChildOfClass("Humanoid").Health > 0 then
@@ -5761,30 +5765,35 @@ do
 					end
 				end
 			end
+		else
+			local targetCF = nearest.HumanoidRootPart.CFrame * CFrame.new(0, 0, BF.distance)
+			BFSmoothMoveTo(targetCF, 0.3)
 		end
-	end
 
-	local function BFAutoAcceptQuest()
-		if not BF.acceptQuest then return end
-		local quest = BFFindQuestGiver()
-		if quest and quest:FindFirstChild("HumanoidRootPart") then
-			local qDist = (quest.HumanoidRootPart.Position - Root.Position).Magnitude
-			if qDist > 10 then
-				pcall(function()
-					Root.CFrame = quest.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-				end)
+		if BF.acceptQuest then
+			local quest = BFFindQuestGiver()
+			if quest and quest:FindFirstChild("HumanoidRootPart") then
+				local qDist = (quest.HumanoidRootPart.Position - Root.Position).Magnitude
+				if qDist > 15 and qDist < BF.attackRange * 3 then
+					BFSmoothMoveTo(quest.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3), 0.4)
+					wait(0.3)
+				end
 			end
 		end
+
+		wait(0.1)
 	end
 
-	local function BFAutoCollectFruits()
-		if not BF.collectFruits then return end
+	local function BFAutoCollectFruitsTick()
+		if not BF.collectFruits or not Root then return end
+		UpdateRoot()
 		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not BF.collectFruits then break end
 			if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
 				local dist = (obj.Handle.Position - Root.Position).Magnitude
-				if dist < BF.attackRange then
+				if dist < BF.attackRange and dist > 2 then
 					pcall(function()
-						Root.CFrame = obj.Handle.CFrame
+						BFSmoothMoveTo(obj.Handle.CFrame, 0.2)
 						wait(0.15)
 					end)
 				end
@@ -5794,54 +5803,49 @@ do
 
 	function BFStop()
 		BF.farming = false
-		if BF.loop then BF.loop:Disconnect() BF.loop = nil end
-		if BF.fruitLoop then BF.fruitLoop:Disconnect() BF.fruitLoop = nil end
-		if BF.attackLoop then BF.attackLoop:Disconnect() BF.attackLoop = nil end
-		Notify("Blox Fruits", "Auto-farm + auto-attack pausado.", nil)
+		BF.currentTarget = nil
+		Notify("Blox Fruits", "Auto-farm pausado.", nil)
 	end
 
 	local function BFStart()
 		BF.farming = true
-		BF.loop = RunService.Heartbeat:Connect(function()
-			pcall(BFAutoFarm)
-			pcall(BFAutoAcceptQuest)
-		end)
-		BF.fruitLoop = RunService.Heartbeat:Connect(function()
-			pcall(BFAutoCollectFruits)
-		end)
-		BF.attackLoop = spawn(function()
+		Notify("Blox Fruits", "Auto-farm ativado! Atacando mobs em range.", "success")
+		spawn(function()
 			while BF.farming do
-				pcall(function()
-					BFEquipBestWeapon()
-				end)
+				pcall(BFAutoFarmTick)
+				wait(0.1)
+			end
+		end)
+		spawn(function()
+			while BF.farming do
+				pcall(BFAutoCollectFruitsTick)
 				wait(1)
 			end
 		end)
-		Notify("Blox Fruits", "Auto-farm + auto-attack ativado! Atacando todos os mobs em range.", "success")
 	end
 
 	-- === Pet Simulator 99 Auto-Collect ===
 	local PS99 = {
 		farming = false, autoHatch = false, collectGems = false,
-		autoTap = true, collectRange = 50, tapSpeed = 0.1, loop, gemLoop,
+		autoTap = true, collectRange = 50, tapSpeed = 0.15,
 	}
 
 	local function PS99Tap()
 		pcall(function()
 			VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-			wait(0.02)
 			VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 		end)
 	end
 
-	local function PS99CollectCoins()
+	local function PS99Tick()
 		if not PS99.farming or not Root then return end
 		UpdateRoot()
 		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not PS99.farming then break end
 			if obj:IsA("BasePart") and (obj.Name:find("Coin") or obj.Name:find("coin") or obj.Name:find("Breakable")) then
 				if (obj.Position - Root.Position).Magnitude < PS99.collectRange then
 					pcall(function()
-						Root.CFrame = obj.CFrame * CFrame.new(0, 0, 2)
+						BFSmoothMoveTo(obj.CFrame * CFrame.new(0, 0, 2), 0.15)
 						wait(PS99.tapSpeed)
 						if PS99.autoTap then
 							for _ = 1, 3 do PS99Tap() end
@@ -5851,10 +5855,11 @@ do
 			end
 		end
 		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not PS99.farming then break end
 			if obj:IsA("BasePart") and (obj.Name:find("Diamond") or obj.Name:find("gem") or obj.Name:find("Gem")) then
 				if PS99.collectGems and (obj.Position - Root.Position).Magnitude < PS99.collectRange then
 					pcall(function()
-						Root.CFrame = obj.CFrame * CFrame.new(0, 0, 2)
+						BFSmoothMoveTo(obj.CFrame * CFrame.new(0, 0, 2), 0.15)
 						wait(PS99.tapSpeed)
 						if PS99.autoTap then
 							for _ = 1, 5 do PS99Tap() end
@@ -5863,23 +5868,17 @@ do
 				end
 			end
 		end
-		if PS99.autoTap then
-			pcall(function()
-				local petsFolder = Character:FindFirstChild("Pets") or workspace:FindFirstChild("Pets")
-				if petsFolder then
-					for _ = 1, 3 do PS99Tap() end
-				end
-			end)
-		end
+		wait(0.1)
 	end
 
-	local function PS99AutoHatch()
-		if not PS99.autoHatch then return end
+	local function PS99HatchTick()
+		if not PS99.autoHatch or not Root then return end
 		for _, egg in ipairs(workspace:GetDescendants()) do
+			if not PS99.autoHatch then break end
 			if egg:IsA("BasePart") and (egg.Name:find("Egg") or egg.Name:find("egg")) then
 				if (egg.Position - Root.Position).Magnitude < 30 then
 					pcall(function()
-						Root.CFrame = egg.CFrame * CFrame.new(0, 0, 3)
+						BFSmoothMoveTo(egg.CFrame * CFrame.new(0, 0, 3), 0.2)
 						wait(0.2)
 						PS99Tap()
 						wait(0.5)
@@ -5891,137 +5890,129 @@ do
 
 	function PS99Stop()
 		PS99.farming = false
-		if PS99.loop then PS99.loop:Disconnect() PS99.loop = nil end
-		if PS99.gemLoop then PS99.gemLoop:Disconnect() PS99.gemLoop = nil end
-		Notify("Pet Simulator 99", "Auto-collect + auto-tap pausado.", nil)
+		Notify("Pet Simulator 99", "Auto-collect pausado.", nil)
 	end
 
 	local function PS99Start()
 		PS99.farming = true
-		PS99.loop = RunService.Heartbeat:Connect(function()
-			pcall(PS99CollectCoins)
-			pcall(PS99AutoHatch)
+		Notify("Pet Simulator 99", "Auto-collect + auto-tap ativado!", "success")
+		spawn(function()
+			while PS99.farming do
+				pcall(PS99Tick)
+				wait(0.1)
+			end
 		end)
-		Notify("Pet Simulator 99", "Auto-collect + auto-tap ativado! Quebrando moedas e diamantes.", "success")
+		spawn(function()
+			while PS99.farming do
+				pcall(PS99HatchTick)
+				wait(1)
+			end
+		end)
 	end
 
 	-- === Bee Swarm Simulator Auto-Collect ===
 	local BSS = {
 		farming = false, autoBoost = false, collectTokens = false,
-		collectRange = 100, loop,
+		collectRange = 100,
 	}
 
-	local function BSSCollectPollen()
+	local function BSSTick()
 		if not BSS.farming or not Root then return end
 		UpdateRoot()
 		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not BSS.farming then break end
 			if obj:IsA("BasePart") and (obj.Name:find("Pollen") or obj.Name:find("pollen") or obj.Name:find("Flower") or obj.Name:find("flower")) then
 				if (obj.Position - Root.Position).Magnitude < BSS.collectRange then
 					pcall(function()
-						Root.CFrame = obj.CFrame * CFrame.new(0, 0, 1)
-						wait(0.15)
+						BFSmoothMoveTo(obj.CFrame * CFrame.new(0, 0, 1), 0.15)
+						wait(0.2)
 					end)
 					if BSS.autoBoost then
 						pcall(function()
 							local tool = Character:FindFirstChildOfClass("Tool")
 							if tool then tool:Activate() end
 							VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-							wait(0.02)
 							VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 						end)
 					end
 				end
 			end
 		end
-	end
-
-	local function BSSCollectTokens()
-		if not BSS.collectTokens then return end
-		for _, token in ipairs(workspace:GetDescendants()) do
-			if token:IsA("BasePart") and (token.Name:find("Token") or token.Name:find("token") or token.Name:find("Item")) then
-				if (token.Position - Root.Position).Magnitude < BSS.collectRange then
-					pcall(function()
-						Root.CFrame = token.CFrame * CFrame.new(0, 0, 1)
-						wait(0.15)
-					end)
+		if BSS.collectTokens then
+			for _, token in ipairs(workspace:GetDescendants()) do
+				if not BSS.farming then break end
+				if token:IsA("BasePart") and (token.Name:find("Token") or token.Name:find("token") or token.Name:find("Item")) then
+					if (token.Position - Root.Position).Magnitude < BSS.collectRange then
+						pcall(function()
+							BFSmoothMoveTo(token.CFrame * CFrame.new(0, 0, 1), 0.15)
+							wait(0.15)
+						end)
+					end
 				end
 			end
 		end
+		wait(0.1)
 	end
 
 	function BSSStop()
 		BSS.farming = false
-		if BSS.loop then BSS.loop:Disconnect() BSS.loop = nil end
 		Notify("Bee Swarm Simulator", "Auto-collect pausado.", nil)
 	end
 
 	local function BSSStart()
 		BSS.farming = true
-		BSS.loop = RunService.Heartbeat:Connect(function()
-			pcall(BSSCollectPollen)
-			pcall(BSSCollectTokens)
+		Notify("Bee Swarm Simulator", "Auto-collect ativado!", "success")
+		spawn(function()
+			while BSS.farming do
+				pcall(BSSTick)
+				wait(0.1)
+			end
 		end)
-		Notify("Bee Swarm Simulator", "Auto-collect ativado! Coletando pollen e tokens.", "success")
 	end
 
 	-- === Jailbreak Auto-Collect ===
 	local JB = {
 		farming = false, autoRob = false,
-		collectRange = 200, loop,
+		collectRange = 200,
 	}
 
-	local function JBCollectMoney()
+	local function JBTick()
 		if not JB.farming or not Root then return end
 		UpdateRoot()
 		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("BasePart") and (obj.Name:find("Money") or obj.Name:find("Cash") or obj.Name:find("Bag") or obj.Name:find("Rob")) then
+			if not JB.farming then break end
+			if obj:IsA("BasePart") and (obj.Name:find("Money") or obj.Name:find("Cash") or obj.Name:find("Bag") or obj.Name:find("Loot") or obj.Name:find("Collect")) then
 				if (obj.Position - Root.Position).Magnitude < JB.collectRange then
 					pcall(function()
-						Root.CFrame = obj.CFrame
-						wait(0.15)
+						BFSmoothMoveTo(obj.CFrame, 0.2)
+						wait(0.2)
 					end)
 					if JB.autoRob then
 						pcall(function()
 							VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-							wait(0.02)
 							VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 						end)
 					end
 				end
 			end
 		end
-	end
-
-	local function JBRobberyCheck()
-		if not JB.autoRob then return end
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("BasePart") and (obj.Name:find("Loot") or obj.Name:find("Collect") or obj.Name:find("Pickup")) then
-				if (obj.Position - Root.Position).Magnitude < JB.collectRange then
-					pcall(function()
-						Root.CFrame = obj.CFrame
-						wait(0.1)
-						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-						wait(0.02)
-						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-					end)
-				end
-			end
-		end
+		wait(0.1)
 	end
 
 	function JBStop()
 		JB.farming = false
-		if JB.loop then JB.loop:Disconnect() JB.loop = nil end
 		Notify("Jailbreak", "Auto-collect pausado.", nil)
 	end
 
 	local function JBStart()
 		JB.farming = true
-		JB.loop = RunService.Heartbeat:Connect(function()
-			pcall(JBCollectMoney)
-			pcall(JBRobberyCheck)
+		Notify("Jailbreak", "Auto-collect ativado!", "success")
+		spawn(function()
+			while JB.farming do
+				pcall(JBTick)
+				wait(0.1)
+			end
 		end)
-		Notify("Jailbreak", "Auto-collect ativado! Coletando dinheiro e roubando.", "success")
 	end
 
 	-- === Stop All Farms ===
@@ -6071,15 +6062,15 @@ do
 				BF.collectFruits = state
 			end)
 
-			AddSlider(page, "BFAttackRange", "Range de Ataque", 10, 500, 150, function(v)
+			AddSlider(page, "BFAttackRange", "Range de Ataque", 10, 300, 100, function(v)
 				BF.attackRange = v
 			end, " studs")
 
-			AddSlider(page, "BFDist", "Distancia dos Mobs", 1, 20, 3, function(v)
+			AddSlider(page, "BFDist", "Distancia dos Mobs", 1, 20, 4, function(v)
 				BF.distance = v
 			end, " studs")
 
-			AddSlider(page, "BFAttackSpeed", "Velocidade do Ataque", 0.05, 1, 0.15, function(v)
+			AddSlider(page, "BFAttackSpeed", "Velocidade do Ataque", 0.1, 1, 0.3, function(v)
 				BF.attackSpeed = v
 			end, "s")
 
