@@ -12,7 +12,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v2.6"
+local VERSION = "v2.7"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -3873,6 +3873,7 @@ task.spawn(function()
 	SectionLabel(page, "Jogadores")
 
 	local selectedPlayer = nil
+	local UpdateAvatarCard = nil
 
 	local tpHolder = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 42),
@@ -4004,6 +4005,9 @@ task.spawn(function()
 		if Flags.SpectateSelected and spectTarget ~= plr then
 			StartSpectate(plr)
 		end
+		if UpdateAvatarCard then
+			pcall(UpdateAvatarCard, plr)
+		end
 	end
 
 	local function TpRebuild()
@@ -4103,6 +4107,9 @@ task.spawn(function()
 		if selectedPlayer == left then
 			selectedPlayer = nil
 			tpCurrent.Text = "Selecione..."
+			if UpdateAvatarCard then
+				pcall(UpdateAvatarCard, nil)
+			end
 		end
 		if tpExpanded then
 			task.defer(function()
@@ -4147,6 +4154,244 @@ task.spawn(function()
 			StopSpectate()
 		end
 	end)
+
+	SectionLabel(page, "Avatar")
+
+	local avatarBusy = false
+	local savedMyDescription = nil
+
+	local avHolder = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 164),
+		BackgroundColor3 = Theme.Card,
+		BorderSizePixel = 0,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+	Corner(avHolder, 10)
+	Outline(avHolder, Theme.Stroke, 0.75)
+
+	local avThumb = Create("ImageLabel", {
+		Position = UDim2.fromOffset(14, 14),
+		Size = UDim2.fromOffset(52, 52),
+		BackgroundTransparency = 1,
+		Image = "",
+	}, avHolder)
+	Corner(avThumb, 26)
+	Outline(avThumb, Theme.Stroke, 0.5)
+
+	local avName = Create("TextLabel", {
+		Position = UDim2.fromOffset(78, 16),
+		Size = UDim2.new(1, -92, 0, 18),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "Ninguem selecionado",
+		TextColor3 = Theme.Text,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, avHolder)
+
+	local avUser = Create("TextLabel", {
+		Position = UDim2.fromOffset(78, 36),
+		Size = UDim2.new(1, -92, 0, 14),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		Text = "Escolha um jogador na lista de Jogadores acima",
+		TextColor3 = Theme.SubText,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, avHolder)
+
+	local function AvButton(props)
+		local btn = Create("TextButton", props, avHolder)
+		Corner(btn, 8)
+		return btn
+	end
+
+	local avMainBtn = AvButton({
+		Position = UDim2.fromOffset(12, 76),
+		Size = UDim2.new(1, -24, 0, 34),
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamBold,
+		Text = "Copiar avatar completo",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 13,
+		AutoButtonColor = false,
+	})
+	AccentGradient(avMainBtn, 90)
+
+	local avClothesBtn = AvButton({
+		Position = UDim2.fromOffset(12, 118),
+		Size = UDim2.new(0.5, -18, 0, 32),
+		BackgroundColor3 = Theme.CardHover,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamMedium,
+		Text = "So as roupas",
+		TextColor3 = Theme.Text,
+		TextSize = 12,
+		AutoButtonColor = false,
+	})
+
+	local avRestoreBtn = AvButton({
+		Position = UDim2.new(0.5, 6, 0, 118),
+		Size = UDim2.new(0.5, -18, 0, 32),
+		BackgroundColor3 = Theme.CardHover,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamMedium,
+		Text = "Restaurar meu visual",
+		TextColor3 = Theme.SubText,
+		TextSize = 12,
+		AutoButtonColor = false,
+	})
+
+	for _, b in ipairs({ avClothesBtn, avRestoreBtn }) do
+		b.MouseEnter:Connect(function()
+			Tween(b, 0.15, { BackgroundColor3 = Theme.Stroke })
+		end)
+		b.MouseLeave:Connect(function()
+			Tween(b, 0.15, { BackgroundColor3 = Theme.CardHover })
+		end)
+	end
+
+	local function GetMyHumanoid()
+		local char = LocalPlayer.Character
+		return char, char and char:FindFirstChildOfClass("Humanoid")
+	end
+
+	local function EnsureSavedDescription()
+		if savedMyDescription then return end
+		pcall(function()
+			savedMyDescription = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+		end)
+	end
+
+	local function CloneLook(fromChar, toChar, includeAccessories)
+		for _, clsName in ipairs({ "Shirt", "Pants", "ShirtGraphic" }) do
+			local mine = toChar:FindFirstChildOfClass(clsName)
+			if mine then pcall(function() mine:Destroy() end) end
+			local theirs = fromChar:FindFirstChildOfClass(clsName)
+			if theirs then
+				pcall(function() theirs:Clone().Parent = toChar end)
+			end
+		end
+		if not includeAccessories then return end
+
+		local myColors = toChar:FindFirstChildOfClass("BodyColors")
+		if myColors then pcall(function() myColors:Destroy() end) end
+		local theirColors = fromChar:FindFirstChildOfClass("BodyColors")
+		if theirColors then
+			pcall(function() theirColors:Clone().Parent = toChar end)
+		end
+
+		local myHead = toChar:FindFirstChild("Head")
+		local theirHead = fromChar:FindFirstChild("Head")
+		local myFace = myHead and myHead:FindFirstChildOfClass("Decal")
+		if myFace then pcall(function() myFace:Destroy() end) end
+		local theirFace = theirHead and theirHead:FindFirstChildOfClass("Decal")
+		if theirFace and myHead then
+			pcall(function() theirFace:Clone().Parent = myHead end)
+		end
+
+		for _, child in ipairs(toChar:GetChildren()) do
+			if child:IsA("Accessory") then
+				pcall(function() child:Destroy() end)
+			end
+		end
+		for _, child in ipairs(fromChar:GetChildren()) do
+			if child:IsA("Accessory") then
+				pcall(function() child:Clone().Parent = toChar end)
+			end
+		end
+	end
+
+	local function CopyAvatar(plr, clothesOnly)
+		if avatarBusy then return end
+		if not plr or not plr.Parent then
+			Notify("Avatar", "Selecione um jogador na lista de Jogadores.", "danger")
+			return
+		end
+		local mchar, hum = GetMyHumanoid()
+		if not hum then
+			Notify("Avatar", "Voce nao tem personagem agora.", "danger")
+			return
+		end
+		local tchar = plr.Character
+		if not tchar then
+			Notify("Avatar", plr.DisplayName .. " esta sem personagem no momento.", "danger")
+			return
+		end
+
+		avatarBusy = true
+		task.spawn(function()
+			local done = false
+			if clothesOnly then
+				done = pcall(CloneLook, tchar, mchar, false)
+			else
+				if hum.RigType == Enum.HumanoidRigType.R15 then
+					EnsureSavedDescription()
+					local okD, desc = pcall(Players.GetHumanoidDescriptionFromUserId, Players, plr.UserId)
+					if okD and desc then
+						done = pcall(hum.ApplyDescription, hum, desc)
+					end
+				end
+				if not done then
+					done = pcall(CloneLook, tchar, mchar, true)
+				end
+			end
+			avatarBusy = false
+			if done then
+				local modo = clothesOnly and "Roupas de " or "Avatar de "
+				Notify("Avatar", modo .. plr.DisplayName .. " aplicado! Na maioria dos jogos so voce ve a mudanca.", "success")
+			else
+				Notify("Avatar", "Nao foi possivel copiar o visual deste jogo.", "danger")
+			end
+		end)
+	end
+
+	local function RestoreMyAvatar()
+		if avatarBusy then return end
+		local _, hum = GetMyHumanoid()
+		if not hum then
+			Notify("Avatar", "Voce nao tem personagem agora.", "danger")
+			return
+		end
+		if savedMyDescription and hum.RigType == Enum.HumanoidRigType.R15 then
+			avatarBusy = true
+			local ok = pcall(hum.ApplyDescription, hum, savedMyDescription)
+			avatarBusy = false
+			if ok then
+				Notify("Avatar", "Seu perfil voltou ao normal!", "success")
+				return
+			end
+		end
+		Notify("Avatar", "Sem backup local. Use 'Redefinir personagem' para restaurar.", nil)
+	end
+
+	avMainBtn.MouseButton1Click:Connect(function()
+		CopyAvatar(selectedPlayer, false)
+	end)
+	avClothesBtn.MouseButton1Click:Connect(function()
+		CopyAvatar(selectedPlayer, true)
+	end)
+	avRestoreBtn.MouseButton1Click:Connect(function()
+		RestoreMyAvatar()
+	end)
+
+	UpdateAvatarCard = function(plr)
+		if plr and plr.Parent then
+			avThumb.Image = "rbxthumb://type=AvatarBust&id=" .. tostring(plr.UserId) .. "&w=150&h=150"
+			avName.Text = plr.DisplayName
+			avUser.Text = "@" .. plr.Name .. "  ·  pronto para copiar o visual"
+			avThumb.Size = UDim2.fromOffset(44, 44)
+			Tween(avThumb, 0.3, { Size = UDim2.fromOffset(52, 52) }, Enum.EasingStyle.Back)
+		else
+			avThumb.Image = ""
+			avName.Text = "Ninguem selecionado"
+			avUser.Text = "Escolha um jogador na lista de Jogadores acima"
+		end
+	end
+	UpdateAvatarCard(nil)
 end)()
 
 ;(function()
