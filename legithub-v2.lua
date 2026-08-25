@@ -12,7 +12,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v2.8"
+local VERSION = "v2.9"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -3575,13 +3575,48 @@ if espSupported then
 	end)
 end
 local mouse = LocalPlayer:GetMouse()
+
+local minimized = false
+local restoreToken = 0
+local function SetMinimized(state)
+	minimized = state
+	if state then
+		restoreToken += 1
+		root.Visible = false
+		bubble.Visible = true
+		bubble.Position = UDim2.new(0, 46, 0.5, -26)
+	else
+		restoreToken += 1
+		local myToken = restoreToken
+		bubble.Visible = false
+		body.Visible = false
+		footer.Visible = false
+		root.Size = UDim2.fromOffset(660, 58)
+		root.Visible = true
+		Tween(root, 0.35, { Size = UDim2.fromOffset(660, 460) }, Enum.EasingStyle.Back).Completed:Once(function()
+			if myToken == restoreToken and not minimized then
+				body.Visible = true
+				footer.Visible = true
+			end
+		end)
+	end
+end
+
+minimizeBtn.MouseButton1Click:Connect(function()
+	SetMinimized(true)
+end)
+
 Connect(UserInputService.InputBegan, function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.RightShift then
 		local isOpen = root.Visible
 		root.Visible = not isOpen
 		if not isOpen then
+			minimized = false
 			bubble.Visible = false
+			body.Visible = true
+			footer.Visible = true
+			root.Size = UDim2.fromOffset(660, 460)
 			Tween(blur, 0.3, { Size = 12 })
 			root.Rotation = -1.6
 			uiScale.Scale = 0.92
@@ -3644,32 +3679,6 @@ minimizeBtn.MouseLeave:Connect(function()
 	Tween(minimizeBtn, 0.15, { BackgroundColor3 = Theme.Card })
 end)
 
-local minimized = false
-local function SetMinimized(state)
-	minimized = state
-	if state then
-		root.Visible = false
-		bubble.Visible = true
-		bubble.Position = UDim2.new(0, 46, 0.5, -26)
-	else
-		bubble.Visible = false
-		body.Visible = false
-		footer.Visible = false
-		root.Size = UDim2.fromOffset(660, 58)
-		root.Visible = true
-		Tween(root, 0.35, { Size = UDim2.fromOffset(660, 460) }, Enum.EasingStyle.Back).Completed:Once(function()
-			if not minimized then
-				body.Visible = true
-				footer.Visible = true
-			end
-		end)
-	end
-end
-
-minimizeBtn.MouseButton1Click:Connect(function()
-	SetMinimized(true)
-end)
-
 local bubbleDragging = false
 local bubbleMoved = false
 local bubbleDragStart, bubbleStartPos
@@ -3680,15 +3689,16 @@ bubble.InputBegan:Connect(function(input)
 		bubbleMoved = false
 		bubbleDragStart = input.Position
 		bubbleStartPos = bubble.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				bubbleDragging = false
-				if not bubbleMoved then
-					SetMinimized(false)
-				end
-				bubbleMoved = false
-			end
-		end)
+	end
+end)
+
+bubble.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		bubbleDragging = false
+		if not bubbleMoved then
+			SetMinimized(false)
+		end
+		bubbleMoved = false
 	end
 end)
 
