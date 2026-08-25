@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.6"
+local VERSION = "v3.7"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -5600,30 +5600,164 @@ do
 		moveDelay = 0.5, currentTarget = nil, lastAttack = 0,
 	}
 
+	local MOB_FOLDER_NAMES = {
+		"Enemies", "Hostiles", "Mobs", "Monsters", "BadGuys",
+		"Bandits", "Pirates", "Marines", "Slimes", "Zombies",
+		"Enemy", "Mob", "Monster", "Demon", "Undead",
+	}
+
+	local NPC_SAFE_NAMES = {
+		"Quest", "QuestGiver", "Dealer", "Shop", "Merchant", "Trader",
+		"Blacksmith", "Fruit", "Teacher", "Trainer", "Guide", "NPC",
+		"Captain", "Boat", "Spawn", "Inn", "Gym", "Boxing", "Sword",
+		"Arm", "Gun", "Boss", "Admin", "Staff",
+	}
+
+	local NPC_SAFE_FOLDERS = {
+		"NPCs", "Quests", "Shops", "Dealers", "Merchants", "Traders",
+		"Interactables", "Friendly", "Town", "Village",
+	}
+
+	local function BFIsPlayerOrAlly(model)
+		if model == Character then return true end
+		if model == LocalPlayer.Character then return true end
+
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		if not hum then return true end
+		if hum.MaxHealth <= 0 then return true end
+
+		local bb = model:FindFirstChild("Head") and model.Head:FindFirstChildOfClass("BillboardGui")
+		if bb then
+			local txt = bb:FindFirstChild("TextLabel")
+			if txt then
+				local name = string.lower(txt.Text)
+				for _, safe in ipairs(NPC_SAFE_NAMES) do
+					if name:find(string.lower(safe)) then return true end
+				end
+			end
+		end
+
+		local fullName = string.lower(model:GetFullName())
+		for _, safeFolder in ipairs(NPC_SAFE_FOLDERS) do
+			if fullName:find(string.lower(safeFolder)) then return true end
+		end
+
+		local charName = string.lower(model.Name)
+		for _, safe in ipairs(NPC_SAFE_NAMES) do
+			if charName:find(string.lower(safe)) then return true end
+		end
+
+		local isPlayer = false
+		pcall(function()
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr.Character == model then
+					isPlayer = true
+					break
+				end
+			end
+		end)
+		if isPlayer then return true end
+
+		return false
+	end
+
+	local function BFIsEnemy(model)
+		if BFIsPlayerOrAlly(model) then return false end
+
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		if not hum or hum.Health <= 0 then return false end
+		if not model:FindFirstChild("HumanoidRootPart") then return false end
+
+		local modelPath = model:GetFullName()
+
+		for _, mobFolder in ipairs(MOB_FOLDER_NAMES) do
+			if modelPath:find(mobFolder) then return true end
+		end
+
+		local charName = string.lower(model.Name)
+		local enemyKeywords = {
+			"bandit", "pirate", "marine", "slime", "zombie", "goblin",
+			"wolf", "gorilla", "yeti", "guard", "soldier", "fighter",
+			"enemy", "hostile", "monster", "demon", "skeleton", "undead",
+			"boar", "snake", "hawk", "admiral", "captain", "bounty",
+			"brute", "rogue", "thief", "raider", "brigand", "villain",
+			"minion", "henchman", "grunt", "peon", "soldier",
+			"fish", "shark", "kraken", "serpent", "dragon",
+		}
+		for _, keyword in ipairs(enemyKeywords) do
+			if charName:find(keyword) then return true end
+		end
+
+		if hum.MaxHealth and hum.MaxHealth > 500 then
+			local isQuestNpc = false
+			local bb = model:FindFirstChild("Head") and model.Head:FindFirstChildOfClass("BillboardGui")
+			if bb then
+				local txt = bb:FindFirstChild("TextLabel")
+				if txt then
+					local t = string.lower(txt.Text)
+					if t:find("quest") or t:find("shop") or t:find("dealer") or t:find("buy") then
+						isQuestNpc = true
+					end
+				end
+			end
+			for _, safe in ipairs(NPC_SAFE_NAMES) do
+				if charName:find(string.lower(safe)) then isQuestNpc = true; break end
+			end
+			if not isQuestNpc then return true end
+		end
+
+		local hasHealthBar = false
+		for _, child in ipairs(model:GetDescendants()) do
+			if child:IsA("BillboardGui") then
+				for _, desc in ipairs(child:GetDescendants()) do
+					if desc:IsA("Frame") and desc.Name:find("Health") then
+						hasHealthBar = true
+						break
+					end
+				end
+			end
+			if hasHealthBar then break end
+		end
+
+		if hasHealthBar then
+			if hum.MaxHealth < 500 then return true end
+		end
+
+		local folder = model.Parent
+		if folder then
+			local folderName = string.lower(folder.Name)
+			for _, mobFolder in ipairs(MOB_FOLDER_NAMES) do
+				if folderName == string.lower(mobFolder) then return true end
+			end
+		end
+
+		return false
+	end
+
 	local function BFFindMobs()
 		local mobs = {}
-		local folders = { "Enemies", "NPCs", "Mob", "Mobs", "Hostiles" }
-		for _, folderName in ipairs(folders) do
-			local folder = workspace:FindFirstChild(folderName)
+
+		for _, mobFolder in ipairs(MOB_FOLDER_NAMES) do
+			local folder = workspace:FindFirstChild(mobFolder)
 			if folder then
-				for _, mob in ipairs(folder:GetChildren()) do
-					local hum = mob:FindFirstChildOfClass("Humanoid")
-					if hum and hum.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+				for _, mob in ipairs(folder:GetDescendants()) do
+					if mob:IsA("Model") and BFIsEnemy(mob) then
 						table.insert(mobs, mob)
 					end
 				end
 			end
 		end
+
 		if #mobs == 0 then
 			for _, mob in ipairs(workspace:GetDescendants()) do
-				if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChildOfClass("Humanoid") then
-					local hum = mob:FindFirstChildOfClass("Humanoid")
-					if hum.Health > 0 and mob ~= Character then
+				if mob:IsA("Model") and mob:FindFirstChildOfClass("Humanoid") then
+					if BFIsEnemy(mob) then
 						table.insert(mobs, mob)
 					end
 				end
 			end
 		end
+
 		return mobs
 	end
 
@@ -6044,7 +6178,7 @@ do
 			SectionLabel(page, "BLOX FRUITS")
 
 			Paragraph(page, "\xF0\x9F\x8D\x8E Blox Fruits Farm",
-				"Detectamos que voce esta em Blox Fruits! Configure o farm abaixo. O sistema teleporta para os mobs, ataca automaticamente com arma equipada, aceita quests e coleta frutas. Multi-metodo de ataque (VIM + tool:Activate + Remote).")
+				"Detectamos que voce esta em Blox Fruits! Auto-farm com deteccao inteligente de NPCs vs Mobs. Detecta por: nome, pasta, health bar, Team, BillboardGui e keywords. So ataca inimigos reais.")
 
 			AddToggle(page, "BFAutoFarm", "Ativar Auto-Farm (Mobs + Quest)", false, function(state)
 				if state then BFStart() else BFStop() end
