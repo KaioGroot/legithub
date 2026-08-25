@@ -4877,7 +4877,6 @@ local function _iife_mundo()
 			Notify("Waypoints", "Marcadores visiveis no mapa.", "success")
 		end
 	end)
-end)
 end
 _iife_mundo()
 
