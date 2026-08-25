@@ -12,7 +12,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v2.5"
+local VERSION = "v2.6"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -21,6 +21,7 @@ CONFIG_FILE = "legithub_config_" .. tostring(game.PlaceId) .. ".json"
 local Connections = {}
 local Options = {}
 local Flags = {}
+local Keybinds = {} -- [nomeDaOpcao] = nomeDoKeyCode
 
 local Originals = {
 	Brightness = Lighting.Brightness,
@@ -109,7 +110,7 @@ local function ScheduleSave()
 			for name, opt in pairs(Options) do
 				data[name] = opt.Get()
 			end
-			writefile(CONFIG_FILE, HttpService:JSONEncode({ flags = data }))
+			writefile(CONFIG_FILE, HttpService:JSONEncode({ flags = data, keys = Keybinds }))
 		end)
 	end)
 end
@@ -118,6 +119,20 @@ local function ApplyConfigData(decoded)
 	for name, value in pairs(decoded.flags or {}) do
 		if Options[name] then
 			Options[name].Set(value, true)
+		end
+	end
+	if type(decoded.keys) == "table" then
+		table.clear(Keybinds)
+		for name, key in pairs(decoded.keys) do
+			if type(key) == "string" then
+				Keybinds[name] = key
+			end
+		end
+		if RefreshKeybindUI then
+			RefreshKeybindUI()
+		end
+		if RebuildKeymapFn then
+			RebuildKeymapFn()
 		end
 	end
 end
@@ -136,6 +151,8 @@ end
 -- ============ Motor de cor de destaque ============
 local RebuildWpDrawings = nil
 local RefreshSwatches = nil
+local RefreshKeybindUI = nil
+local RebuildKeymapFn = nil
 
 local ACCENT_PRESETS = {
 	{ name = "Vermelho", a = Color3.fromRGB(255, 64, 84),  b = Color3.fromRGB(255, 138, 76) },
@@ -457,6 +474,91 @@ task.spawn(function()
 	end
 end)
 
+local searchBoxHolder = Create("Frame", {
+	Name = "SearchHolder",
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(1, -330, 0.5, 0),
+	Size = UDim2.fromOffset(190, 28),
+	BackgroundColor3 = Theme.Card,
+	BorderSizePixel = 0,
+}, headerBar)
+Corner(searchBoxHolder, 8)
+local searchStroke = Outline(searchBoxHolder, Theme.Stroke, 0.55)
+
+Create("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(9, 0),
+	Size = UDim2.fromOffset(18, 28),
+	Font = Enum.Font.GothamBold,
+	Text = "🔍",
+	TextSize = 11,
+	TextColor3 = Theme.SubText,
+}, searchBoxHolder)
+
+local searchBox = Create("TextBox", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(30, 0),
+	Size = UDim2.new(1, -38, 1, 0),
+	Font = Enum.Font.GothamMedium,
+	Text = "",
+	PlaceholderText = "Buscar função...",
+	PlaceholderColor3 = Theme.SubText,
+	TextColor3 = Theme.Text,
+	TextSize = 12,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ClearTextOnFocus = false,
+}, searchBoxHolder)
+
+searchBox.Focused:Connect(function()
+	Tween(searchStroke, 0.2, { Color = Theme.Accent, Transparency = 0.2 })
+end)
+searchBox.FocusLost:Connect(function()
+	Tween(searchStroke, 0.3, { Color = Theme.Stroke, Transparency = 0.55 })
+end)
+
+-- Bolha flutuante (modo minimizado)
+local bubble = Create("TextButton", {
+	Name = "HubBubble",
+	Position = UDim2.new(0, 46, 0.5, -26),
+	Size = UDim2.fromOffset(52, 52),
+	BackgroundColor3 = Theme.Accent,
+	Text = "L",
+	Font = Enum.Font.GothamBlack,
+	TextColor3 = Color3.new(1, 1, 1),
+	TextSize = 22,
+	AutoButtonColor = false,
+	Visible = false,
+}, screenGui)
+Corner(bubble, 26)
+table.insert(AccentRegistry, { inst = bubble, prop = "BackgroundColor3", key = "Accent" })
+AccentGradient(bubble, 135)
+
+local bubbleShadow = Create("ImageLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.new(1, 46, 1, 46),
+	BackgroundTransparency = 1,
+	Image = "rbxassetid://6014261993",
+	ImageColor3 = Color3.new(0, 0, 0),
+	ImageTransparency = 0.5,
+	ScaleType = Enum.ScaleType.Slice,
+	SliceCenter = Rect.new(49, 49, 450, 450),
+	ZIndex = 0,
+}, bubble)
+
+task.spawn(function()
+	while screenGui.Parent do
+		if bubble.Visible then
+			Tween(bubble, 1.6, { Size = UDim2.fromOffset(56, 56) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+			task.wait(1.6)
+			Tween(bubble, 1.6, { Size = UDim2.fromOffset(52, 52) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+			task.wait(1.6)
+		else
+			task.wait(1)
+		end
+	end
+end)
+
 local body = Create("Frame", {
 	Name = "Body",
 	Position = UDim2.fromOffset(0, 58),
@@ -741,6 +843,172 @@ for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Misc" }) do
 	MakePage(tabName, i)
 end
 
+-- ============ Busca de configuracoes ============
+local searchPanel = Create("Frame", {
+	Name = "SearchResults",
+	Position = UDim2.new(0, 12, 0, 62),
+	Size = UDim2.new(0, 330, 0, 0),
+	BackgroundColor3 = Theme.Surface,
+	BorderSizePixel = 0,
+	Visible = false,
+	ZIndex = 40,
+}, root)
+Corner(searchPanel, 10)
+Outline(searchPanel, Theme.Stroke, 0.4)
+
+local function FlashWidget(widget)
+	if not widget then return end
+	local stroke = widget:FindFirstChildOfClass("UIStroke")
+	if not stroke then return end
+	local origColor = stroke.Color
+	local origT = stroke.Transparency
+	Tween(stroke, 0.18, { Color = Theme.Accent, Transparency = 0 })
+	task.delay(1.1, function()
+		if stroke.Parent then
+			Tween(stroke, 0.5, { Color = origColor, Transparency = origT })
+		end
+	end)
+end
+
+local currentResults = {}
+
+local function HideSearchPanel()
+	searchPanel.Visible = false
+	table.clear(currentResults)
+end
+
+local function PickSearchResult(opt)
+	HideSearchPanel()
+	searchBox.Text = ""
+	SelectTab(opt.PageName)
+	task.delay(0.25, function()
+		FlashWidget(opt.Widget)
+	end)
+end
+
+local function BuildSearchResultRow(opt, order)
+	local rowBtn = Create("TextButton", {
+		Size = UDim2.new(1, -12, 0, 30),
+		BackgroundColor3 = Theme.Card,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 41,
+		LayoutOrder = order,
+	}, searchPanel)
+	Corner(rowBtn, 7)
+
+	Create("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 0),
+		Size = UDim2.new(1, -110, 1, 0),
+		Font = Enum.Font.GothamMedium,
+		Text = tostring(opt.Label),
+		TextColor3 = Theme.Text,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 42,
+	}, rowBtn)
+
+	local tabBadge = Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(86, 20),
+		BackgroundColor3 = Theme.Background,
+		Font = Enum.Font.GothamBold,
+		Text = "Aba " .. tostring(opt.PageName),
+		TextColor3 = Theme.SubText,
+		TextSize = 10,
+		ZIndex = 42,
+	}, rowBtn)
+	Corner(tabBadge, 6)
+
+	rowBtn.MouseEnter:Connect(function()
+		Tween(rowBtn, 0.12, { BackgroundColor3 = Theme.CardHover })
+	end)
+	rowBtn.MouseLeave:Connect(function()
+		Tween(rowBtn, 0.15, { BackgroundColor3 = Theme.Card })
+	end)
+	rowBtn.MouseButton1Click:Connect(function()
+		PickSearchResult(opt)
+	end)
+end
+
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	for _, child in ipairs(searchPanel:GetChildren()) do
+		if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
+			child:Destroy()
+		end
+	end
+	local query = string.lower(searchBox.Text)
+	if query == "" then
+		HideSearchPanel()
+		return
+	end
+
+	table.clear(currentResults)
+	for _, opt in pairs(Options) do
+		local hay = string.lower(tostring(opt.Label) .. " " .. tostring(opt.PageName))
+		if string.find(hay, query, 1, true) then
+			table.insert(currentResults, opt)
+		end
+	end
+	table.sort(currentResults, function(a, b)
+		return tostring(a.Label) < tostring(b.Label)
+	end)
+
+	Create("UIListLayout", {
+		Padding = UDim.new(0, 5),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Top,
+		ZIndex = 41,
+	}, searchPanel)
+
+	if #currentResults == 0 then
+		Create("TextLabel", {
+			Size = UDim2.new(1, -12, 0, 28),
+			BackgroundTransparency = 1,
+			Font = Enum.Font.GothamMedium,
+			Text = "Nada encontrado para \"" .. searchBox.Text .. "\"",
+			TextColor3 = Theme.SubText,
+			TextSize = 12,
+			ZIndex = 42,
+			LayoutOrder = 1,
+		}, searchPanel)
+		searchPanel.Size = UDim2.new(0, 330, 0, 40)
+	else
+		local shown = math.min(#currentResults, 10)
+		for idx = 1, shown do
+			BuildSearchResultRow(currentResults[idx], idx)
+		end
+		local extra = #currentResults > shown and ("  +" .. (#currentResults - shown) .. " mais... refine a busca") or ""
+		if extra ~= "" then
+			Create("TextLabel", {
+				Size = UDim2.new(1, -12, 0, 20),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Gotham,
+				Text = extra,
+				TextColor3 = Theme.SubText,
+				TextSize = 11,
+				ZIndex = 42,
+				LayoutOrder = shown + 1,
+			}, searchPanel)
+			searchPanel.Size = UDim2.new(0, 330, 0, shown * 35 + 32)
+		else
+			searchPanel.Size = UDim2.new(0, 330, 0, shown * 35 + 12)
+		end
+	end
+	searchPanel.Visible = true
+end)
+
+searchBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed and currentResults[1] then
+		PickSearchResult(currentResults[1])
+	end
+end)
+
 local function SectionLabel(page, text)
 	local container = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 24),
@@ -812,8 +1080,20 @@ local function Paragraph(page, title, body)
 	return holder
 end
 
-local function RegisterOption(name, option)
+local function PageNameOf(page)
+	for name, p in pairs(Pages) do
+		if p == page then
+			return name
+		end
+	end
+	return "?"
+end
+
+local function RegisterOption(name, option, page, label, widget)
 	Options[name] = option
+	option.Label = label or name
+	option.PageName = PageNameOf(page)
+	option.Widget = widget
 end
 
 local BTN_ICONS = {
@@ -828,6 +1108,8 @@ local BTN_ICONS = {
 	{ "Voltar a posicao", "🧭" },
 	{ "Marcar jogador como ADM", "🚩" },
 	{ "Remover marcacao", "🚫" },
+	{ "Exportar perfil", "📤" },
+	{ "Importar perfil", "📥" },
 }
 
 local function BtnIcon(text)
@@ -1003,7 +1285,7 @@ local function AddToggle(page, name, text, default, callback)
 		end,
 		Get = function() return state end,
 	}
-	RegisterOption(name, option)
+	RegisterOption(name, option, page, text, btn)
 	return option
 end
 
@@ -1127,7 +1409,7 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 		end,
 		Get = function() return value end,
 	}
-	RegisterOption(name, option)
+	RegisterOption(name, option, page, text, holder)
 	return option
 end
 
@@ -1310,7 +1592,7 @@ local function AddDropdown(page, name, text, options, default, callback)
 			end
 		end,
 	}
-	RegisterOption(name, option)
+	RegisterOption(name, option, page, text, btn)
 	return option
 end
 
@@ -1411,6 +1693,89 @@ local function Notify(title, message, kind)
 		toast:Destroy()
 	end)
 end
+
+-- ============ Motor de teclas de atalho ============
+local KEYBINDABLE = {
+	{ "Hitbox", "Hitbox" },
+	{ "Reach", "Alcance" },
+	{ "Noclip", "Noclip" },
+	{ "Fly", "Fly" },
+	{ "InfiniteJump", "Pulo infinito" },
+	{ "Invisible", "Invisibilidade" },
+	{ "ESP", "ESP" },
+	{ "Fullbright", "Fullbright" },
+	{ "NoFog", "Sem neblina" },
+	{ "AntiAFK", "Anti-AFK" },
+	{ "AutoPrompt", "Interacao automatica" },
+	{ "WaypointESP", "Waypoints no mundo" },
+}
+
+local KeybindRows = {} -- [nome] = pillLabel
+local KeycodeToName = {}
+local CaptureTarget = nil
+
+local function RebuildKeymap()
+	table.clear(KeycodeToName)
+	for name, keyName in pairs(Keybinds) do
+		local ok, keycode = pcall(function()
+			return Enum.KeyCode[keyName]
+		end)
+		if ok and keycode then
+			KeycodeToName[keycode] = name
+		end
+	end
+end
+RebuildKeymapFn = RebuildKeymap
+
+local function SetKeybind(name, keyName)
+	if keyName then
+		Keybinds[name] = keyName
+	else
+		Keybinds[name] = nil
+	end
+	RebuildKeymap()
+	if RefreshKeybindUI then
+		RefreshKeybindUI()
+	end
+	ScheduleSave()
+end
+
+local function StartKeyCapture(name)
+	CaptureTarget = name
+	local label = KeybindRows[name]
+	if label then
+		label.Text = "..."
+	end
+	Notify("Teclas", "Pressione uma tecla para '" .. tostring(name) .. "'. ESC cancela.", nil)
+end
+
+Connect(UserInputService.InputBegan, function(input, gameProcessed)
+	local isKey = input.UserInputType == Enum.UserInputType.Keyboard
+	if not isKey then return end
+	if CaptureTarget then
+		local target = CaptureTarget
+		local keyCode = input.KeyCode
+		CaptureTarget = nil
+		if keyCode ~= Enum.KeyCode.Escape then
+			SetKeybind(target, keyCode.Name)
+			Notify("Teclas", "'" .. target .. "' agora usa a tecla " .. keyCode.Name .. ".", "success")
+		else
+			if RefreshKeybindUI then
+				RefreshKeybindUI()
+			end
+			Notify("Teclas", "Captura cancelada.", nil)
+		end
+		return
+	end
+	if gameProcessed then return end
+	local targetName = KeycodeToName[input.KeyCode]
+	if targetName then
+		local opt = Options[targetName]
+		if opt and opt.Type == "Toggle" then
+			opt.Set(not opt.Get())
+		end
+	end
+end)
 
 local function GetCharacterParts()
 	local char = LocalPlayer.Character
@@ -1931,7 +2296,7 @@ task.spawn(function()
 							end
 							hrp.CanCollide = false
 							hrp.Size = Vector3.new(size, size, size)
-							hrp.Transparency = 0.4
+							hrp.Transparency = Flags.HitboxInvisible and 1 or 0.4
 						end
 					end)
 				end
@@ -3215,6 +3580,7 @@ Connect(UserInputService.InputBegan, function(input, gameProcessed)
 		local isOpen = root.Visible
 		root.Visible = not isOpen
 		if not isOpen then
+			bubble.Visible = false
 			Tween(blur, 0.3, { Size = 12 })
 			root.Rotation = -1.6
 			uiScale.Scale = 0.92
@@ -3280,20 +3646,62 @@ end)
 local minimized = false
 local function SetMinimized(state)
 	minimized = state
-	if minimized then
+	if state then
+		root.Visible = false
+		bubble.Visible = true
+		bubble.Position = UDim2.new(0, 46, 0.5, -26)
+	else
+		bubble.Visible = false
 		body.Visible = false
 		footer.Visible = false
-		Tween(root, 0.3, { Size = UDim2.fromOffset(660, 58) }, Enum.EasingStyle.Quart)
-	else
+		root.Size = UDim2.fromOffset(660, 58)
+		root.Visible = true
 		Tween(root, 0.35, { Size = UDim2.fromOffset(660, 460) }, Enum.EasingStyle.Back).Completed:Once(function()
-			body.Visible = true
-			footer.Visible = true
+			if not minimized then
+				body.Visible = true
+				footer.Visible = true
+			end
 		end)
 	end
 end
 
 minimizeBtn.MouseButton1Click:Connect(function()
-	SetMinimized(not minimized)
+	SetMinimized(true)
+end)
+
+local bubbleDragging = false
+local bubbleMoved = false
+local bubbleDragStart, bubbleStartPos
+
+bubble.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		bubbleDragging = true
+		bubbleMoved = false
+		bubbleDragStart = input.Position
+		bubbleStartPos = bubble.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				bubbleDragging = false
+				if not bubbleMoved then
+					SetMinimized(false)
+				end
+				bubbleMoved = false
+			end
+		end)
+	end
+end)
+
+Connect(UserInputService.InputChanged, function(input)
+	if bubbleDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - bubbleDragStart
+		if math.abs(delta.X) + math.abs(delta.Y) > 4 then
+			bubbleMoved = true
+		end
+		bubble.Position = UDim2.new(
+			bubbleStartPos.X.Scale, bubbleStartPos.X.Offset + delta.X,
+			bubbleStartPos.Y.Scale, bubbleStartPos.Y.Offset + delta.Y
+		)
+	end
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
@@ -3416,6 +3824,15 @@ do
 	AddSlider(page, "HitboxSize", "Tamanho da hitbox", 2, 50, 10, function(v)
 		Flags.HitboxSize = v
 	end)
+
+	AddToggle(page, "HitboxInvisible", "Hitbox invisivel (sem caixa na tela)", false, function(state)
+		if not GetHubRemote() then
+			Notify("Hitbox", state and "A caixa ficara oculta, o efeito continua." or "Caixa visivel novamente.", nil)
+		end
+	end)
+
+	Paragraph(page, "Dica anti-falha",
+		"Se a caixa fica grande mas o dano nao registra de longe, o jogo valida distancia no servidor deles. Nesse caso ative tambem o Alcance (aba Player), que estende sua arma e costuma resolver. O modo REAL via companion funciona apenas em jogos proprios.")
 
 	AddToggle(page, "Reach", "Alcance da arma (estilo IY)", false, function(state)
 		Flags.Reach = state
@@ -4033,6 +4450,128 @@ do
 		end)
 	end)
 
+	SectionLabel(page, "Performance")
+
+	AddToggle(page, "PerfMode", "Modo performance (claro + FPS)", false, function(state)
+		if state then
+			if Options.Fullbright then
+				Options.Fullbright.Set(true, true)
+			end
+			if Options.NoFog then
+				Options.NoFog.Set(true, true)
+			end
+			pcall(function()
+				setfpscap(240)
+			end)
+			Notify("Performance", "Fullbright + sem neblina ativos, FPS liberado ate 240.", "success")
+		else
+			if Options.Fullbright then
+				Options.Fullbright.Set(false, true)
+			end
+			if Options.NoFog then
+				Options.NoFog.Set(false, true)
+			end
+			pcall(function()
+				setfpscap(60)
+			end)
+			Notify("Performance", "Graficos restaurados ao padrao.", nil)
+		end
+	end)
+
+	AddButton(page, "Remover texturas do mapa", nil, function()
+		Notify("Performance", "Removendo texturas... o jogo pode engasgar por alguns segundos.", nil)
+		task.spawn(function()
+			local removed = 0
+			local processed = 0
+			for _, obj in ipairs(workspace:GetDescendants()) do
+				if obj:IsA("Decal") or obj:IsA("Texture") then
+					obj.Transparency = 1
+					removed += 1
+				end
+				processed += 1
+				if processed % 3000 == 0 then
+					task.wait()
+				end
+			end
+			Notify("Performance", removed .. " texturas removidas. Reentre no servidor para voltar ao normal.", "success")
+		end)
+	end)
+
+	SectionLabel(page, "Teclas de atalho")
+
+	local kbHint = Create("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		Text = "Clique para definir a tecla  |  clique direito remove",
+		TextColor3 = Theme.SubText,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = page.Add(function(o) return o end),
+	}, page.Scroll)
+
+	for _, bind in ipairs(KEYBINDABLE) do
+		local optName, optText = bind[1], bind[2]
+		local row = Create("TextButton", {
+			Size = UDim2.new(1, 0, 0, 38),
+			BackgroundColor3 = Theme.Card,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			ClipsDescendants = true,
+			LayoutOrder = page.Add(function(o) return o end),
+		}, page.Scroll)
+		Corner(row, 10)
+		Outline(row, Theme.Stroke, 0.6)
+
+		Create("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(14, 0),
+			Size = UDim2.new(1, -120, 1, 0),
+			Font = Enum.Font.GothamMedium,
+			Text = optText,
+			TextColor3 = Theme.Text,
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		}, row)
+
+		local pill = Create("TextLabel", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(84, 24),
+			BackgroundColor3 = Theme.Surface,
+			Font = Enum.Font.GothamBold,
+			Text = Keybinds[optName] or "--",
+			TextColor3 = Theme.SubText,
+			TextSize = 11,
+		}, row)
+		Corner(pill, 7)
+
+		KeybindRows[optName] = pill
+
+		row.MouseEnter:Connect(function()
+			Tween(row, 0.15, { BackgroundColor3 = Theme.CardHover })
+			Tween(kbHint, 0.15, { TextTransparency = 1 })
+		end)
+		row.MouseLeave:Connect(function()
+			Tween(row, 0.18, { BackgroundColor3 = Theme.Card })
+			Tween(kbHint, 0.15, { TextTransparency = 0 })
+		end)
+		row.MouseButton1Click:Connect(function()
+			Ripple(row, UserInputService:GetMouseLocation())
+			StartKeyCapture(optName)
+		end)
+		row.MouseButton2Click:Connect(function()
+			SetKeybind(optName, nil)
+		end)
+	end
+
+	RefreshKeybindUI = function()
+		for name, label in pairs(KeybindRows) do
+			label.Text = Keybinds[name] or "--"
+		end
+	end
+
 	SectionLabel(page, "Aparencia")
 
 	local swatchHolder = Create("Frame", {
@@ -4264,6 +4803,141 @@ do
 		Notify("Config", "Configuracoes salvas com sucesso.", "success")
 	end)
 
+	local importOverlay
+	local importInput
+
+	AddButton(page, "Exportar perfil (copia codigo)", nil, function()
+		if not setclipboard then
+			Notify("Erro", "setclipboard nao disponivel neste executor.", "danger")
+			return
+		end
+		local data = {}
+		for name, opt in pairs(Options) do
+			data[name] = opt.Get()
+		end
+		setclipboard(HttpService:JSONEncode({ flags = data, keys = Keybinds }))
+		Notify("Config", "Perfil copiado! Mande pra quem quiser usar seu setup.", "success")
+	end)
+
+	AddButton(page, "Importar perfil (colar codigo)", nil, function()
+		importOverlay.Visible = true
+		importInput.Text = ""
+		task.defer(function()
+			importInput:CaptureFocus()
+		end)
+	end)
+
+	importOverlay = Create("Frame", {
+		Name = "ImportOverlay",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45,
+		Visible = false,
+		ZIndex = 50,
+	}, root)
+
+	local importCard = Create("Frame", {
+		Name = "ImportCard",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(390, 270),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0,
+		ZIndex = 51,
+	}, importOverlay)
+	Corner(importCard, 14)
+	Outline(importCard, Theme.Stroke, 0.4)
+
+	Create("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(18, 12),
+		Size = UDim2.new(1, -36, 0, 20),
+		Font = Enum.Font.GothamBold,
+		Text = "📥 Importar perfil",
+		TextColor3 = Theme.Text,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 52,
+	}, importCard)
+
+	Create("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(18, 36),
+		Size = UDim2.new(1, -36, 0, 16),
+		Font = Enum.Font.Gotham,
+		Text = "Cole abaixo o codigo de perfil exportado:",
+		TextColor3 = Theme.SubText,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 52,
+	}, importCard)
+
+	importInput = Create("TextBox", {
+		Position = UDim2.fromOffset(18, 60),
+		Size = UDim2.new(1, -36, 0, 120),
+		BackgroundColor3 = Theme.Background,
+		BorderSizePixel = 0,
+		Font = Enum.Font.Code,
+		Text = "",
+		PlaceholderText = "{\"flags\":...}",
+		PlaceholderColor3 = Theme.SubText,
+		TextColor3 = Theme.Text,
+		TextSize = 11,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		MultiLine = true,
+		ClearTextOnFocus = false,
+		ZIndex = 52,
+	}, importCard)
+	Corner(importInput, 8)
+	Outline(importInput, Theme.Stroke, 0.5)
+
+	local importCancel = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -100, 1, -14),
+		Size = UDim2.fromOffset(86, 32),
+		BackgroundColor3 = Theme.Card,
+		Font = Enum.Font.GothamBold,
+		Text = "Cancelar",
+		TextColor3 = Theme.SubText,
+		TextSize = 12,
+		ZIndex = 52,
+	}, importCard)
+	Corner(importCancel, 8)
+
+	local importOk = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -14, 1, -14),
+		Size = UDim2.fromOffset(86, 32),
+		BackgroundColor3 = Theme.Accent,
+		Font = Enum.Font.GothamBold,
+		Text = "Importar",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 12,
+		ZIndex = 52,
+	}, importCard)
+	Corner(importOk, 8)
+
+	importCancel.MouseButton1Click:Connect(function()
+		importOverlay.Visible = false
+	end)
+
+	importOk.MouseButton1Click:Connect(function()
+		local ok, decoded = pcall(function()
+			return HttpService:JSONDecode(importInput.Text)
+		end)
+		if not ok or type(decoded) ~= "table" then
+			Notify("Importar", "Codigo invalido (nao parece um perfil do LegitHub).", "danger")
+			return
+		end
+		ApplyConfigData(decoded)
+		ScheduleSave()
+		importOverlay.Visible = false
+		importInput.Text = ""
+		Notify("Config", "Perfil importado e aplicado com sucesso!", "success")
+	end)
+
 	AddButton(page, "Descarregar Legit Hub", Theme.Danger, function()
 		_G.LegitHub.Unload()
 	end)
@@ -4336,23 +5010,171 @@ _G.LegitHub = {
 
 root.Visible = false
 root.GroupTransparency = 1
-uiScale.Scale = 0.85
+uiScale.Scale = 0.9
 
-task.delay(0.1, function()
-	root.Visible = true
-	Tween(uiScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
-	Tween(root, 0.4, { GroupTransparency = 0 })
+-- ============ Splash screen ============
+local splash = Create("CanvasGroup", {
+	Name = "Splash",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.fromRGB(18, 15, 19),
+	BorderSizePixel = 0,
+	GroupTransparency = 0,
+	ZIndex = 60,
+}, screenGui)
 
-	LoadConfig()
+local function SplashGlow(pos, size, rot)
+	local wash = Create("Frame", {
+		Position = pos,
+		Size = size,
+		BackgroundColor3 = Theme.Accent,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Rotation = rot,
+		ZIndex = 60,
+	}, splash)
+	Create("UIGradient", {
+		Color = ColorSequence.new(Theme.Accent, Theme.Accent2),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.5, 0.82),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+	}, wash)
+	return wash
+end
 
-	Notify("Bem-vindo!", "Legit Hub " .. VERSION .. " carregado com sucesso.", "success")
+SplashGlow(UDim2.fromOffset(-120, -90), UDim2.fromOffset(520, 340), 20)
+SplashGlow(UDim2.new(1, -160, 1, -240), UDim2.fromOffset(460, 300), -25)
 
-	task.delay(2.5, function()
-		if root.Visible then
-			Tween(blur, 0.4, { Size = 0 })
-		end
+local splashLogo = Create("CanvasGroup", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, -74),
+	Size = UDim2.fromOffset(68, 68),
+	BackgroundColor3 = Theme.Accent,
+	BorderSizePixel = 0,
+	GroupTransparency = 1,
+	ZIndex = 61,
+}, splash)
+Corner(splashLogo, 20)
+AccentGradient(splashLogo, 135)
+
+Create("TextLabel", {
+	BackgroundTransparency = 1,
+	Size = UDim2.fromScale(1, 1),
+	Font = Enum.Font.GothamBlack,
+	Text = "L",
+	TextColor3 = Color3.new(1, 1, 1),
+	TextSize = 36,
+	ZIndex = 62,
+}, splashLogo)
+
+local splashTitle = Create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, -14),
+	Size = UDim2.fromOffset(320, 34),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamBlack,
+	Text = "LEGIT HUB",
+	TextColor3 = Theme.Text,
+	TextSize = 30,
+	ZIndex = 61,
+}, splash)
+	Create("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(214, 198, 206)),
+		Rotation = 90,
+	}, splashTitle)
+
+Create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 12),
+	Size = UDim2.fromOffset(320, 16),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamBold,
+	Text = "U N I V E R S A L   T O O L K I T",
+	TextColor3 = Theme.SubText,
+	TextSize = 10,
+	ZIndex = 61,
+}, splash)
+
+local splashPill = Create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 38),
+	Size = UDim2.fromOffset(58, 22),
+	BackgroundColor3 = Theme.Card,
+	BorderSizePixel = 0,
+	ZIndex = 61,
+}, splash)
+Corner(splashPill, 11)
+Create("TextLabel", {
+	BackgroundTransparency = 1,
+	Size = UDim2.fromScale(1, 1),
+	Font = Enum.Font.GothamBold,
+	Text = VERSION,
+	TextColor3 = Theme.Accent2,
+	TextSize = 11,
+	ZIndex = 62,
+}, splashPill)
+
+local splashBarBg = Create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 84),
+	Size = UDim2.fromOffset(230, 4),
+	BackgroundColor3 = Theme.TrackOff,
+	BorderSizePixel = 0,
+	ZIndex = 61,
+}, splash)
+Corner(splashBarBg, 2)
+
+local splashBarFill = Create("Frame", {
+	Size = UDim2.fromScale(0, 1),
+	BackgroundColor3 = Theme.Accent,
+	BorderSizePixel = 0,
+	ZIndex = 62,
+}, splashBarBg)
+Corner(splashBarFill, 2)
+
+Create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 108),
+	Size = UDim2.fromOffset(420, 16),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamMedium,
+	Text = "v2.6 — teclas de atalho, busca, bolha flutuante, hitbox real e mais",
+	TextColor3 = Theme.SubText,
+	TextSize = 11,
+	TextTransparency = 0.25,
+	ZIndex = 61,
+}, splash)
+
+splashLogo.GroupTransparency = 1
+splashLogo.Size = UDim2.fromOffset(40, 40)
+task.defer(function()
+	Tween(splashLogo, 0.55, { GroupTransparency = 0 }, Enum.EasingStyle.Quart)
+	Tween(splashLogo, 0.6, { Size = UDim2.fromOffset(68, 68) }, Enum.EasingStyle.Back)
+	Tween(splashBarFill, 1.7, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+end)
+
+task.delay(2.1, function()
+	Tween(splash, 0.45, { GroupTransparency = 1 }).Completed:Once(function()
+		splash:Destroy()
+
+		root.Visible = true
+		Tween(uiScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
+		Tween(root, 0.4, { GroupTransparency = 0 })
+
+		Notify("Bem-vindo!", "Legit Hub " .. VERSION .. " carregado com sucesso.", "success")
+
+		task.delay(2.5, function()
+			if root.Visible then
+				Tween(blur, 0.4, { Size = 0 })
+			end
+		end)
+		Tween(blur, 0.6, { Size = 10 })
 	end)
-	Tween(blur, 0.6, { Size = 10 })
+end)
+
+task.delay(0.15, function()
+	LoadConfig()
 end)
 
 print("[LegitHub] " .. VERSION .. " carregado!")
