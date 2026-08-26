@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v5.0"
+local VERSION = "v5.1"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -2951,8 +2951,11 @@ local function _iife_adm()
 		return nil
 	end
 
-	local function ScanPlayer(plr)
-		if plr == LocalPlayer or not plr.Parent then return end
+	local function ScanPlayer(plr, onDone)
+		if plr == LocalPlayer or not plr.Parent then
+			if onDone then onDone() end
+			return
+		end
 		task.spawn(function()
 			local info = ClassifyPlayer(plr)
 			if info then
@@ -2960,12 +2963,27 @@ local function _iife_adm()
 			elseif not AdmMon.Info[plr] then
 				RemoveAdm(plr, false)
 			end
+			if onDone then onDone() end
 		end)
 	end
 
-	local function ScanAll()
-		for _, plr in ipairs(Players:GetPlayers()) do
-			ScanPlayer(plr)
+	local function ScanAll(onDone)
+		local players = Players:GetPlayers()
+		local pending = 0
+		local function tick()
+			pending = pending - 1
+			if pending <= 0 and onDone then
+				onDone()
+			end
+		end
+		for _, plr in ipairs(players) do
+			if plr ~= LocalPlayer and plr.Parent then
+				pending = pending + 1
+				ScanPlayer(plr, tick)
+			end
+		end
+		if pending <= 0 and onDone then
+			onDone()
 		end
 	end
 	_G.LegitHubScanAdmins = ScanAll
@@ -3477,27 +3495,38 @@ local function _iife_adm()
 	table.insert(Connections, Players.PlayerAdded:Connect(function(plr)
 		task.delay(2, function()
 			if HubAlive and Flags.AdmMonitor then
-				ScanPlayer(plr)
+				ScanPlayer(plr, function()
+					if AdmMon.OnUpdate then AdmMon.OnUpdate() end
+					if admPanel and admPanel.Visible then RefreshPanel() end
+				end)
 			end
 		end)
 	end))
 
 	table.insert(Connections, Players.PlayerRemoving:Connect(function(plr)
 		RemoveAdm(plr, true)
+		if AdmMon.OnUpdate then AdmMon.OnUpdate() end
+		if admPanel and admPanel.Visible then RefreshPanel() end
 	end))
 
 	task.spawn(function()
 		while HubAlive do
 			if Flags.AdmMonitor then
-				ScanAll()
+				ScanAll(function()
+					if AdmMon.OnUpdate then AdmMon.OnUpdate() end
+					if admPanel and admPanel.Visible then RefreshPanel() end
+				end)
 			end
 			task.wait(30)
 		end
 	end)
 
-	task.delay(3, function()
+	task.delay(2, function()
 		if HubAlive and Flags.AdmMonitor then
-			ScanAll()
+			ScanAll(function()
+				if AdmMon.OnUpdate then AdmMon.OnUpdate() end
+				if admPanel and admPanel.Visible then RefreshPanel() end
+			end)
 		end
 	end)
 	-- ============ fim Monitor de ADMs ============
@@ -7607,8 +7636,7 @@ local function _iife_misc()
 	end
 
 	task.delay(0.5, function()
-		ScanAll()
-		task.delay(1, function()
+		ScanAll(function()
 			AdmMon.OnUpdate()
 			if admPanel and admPanel.Visible then
 				RefreshPanel()
@@ -7619,8 +7647,12 @@ local function _iife_misc()
 	AddToggle(page, "AdmMonitor", "Monitorar ADMs", true, function(state)
 		Flags.AdmMonitor = state
 		if state then
-			ScanAll()
-			AdmMon.OnUpdate()
+			ScanAll(function()
+				AdmMon.OnUpdate()
+				if admPanel and admPanel.Visible then
+					RefreshPanel()
+				end
+			end)
 			Notify("Monitor de ADMs", "Vigiando dono e staff do jogo.", "success")
 		else
 			for plr in pairs(AdmMon.Info) do
@@ -7650,7 +7682,12 @@ local function _iife_misc()
 	AddSlider(page, "AdmMinRank", "Rank minimo no grupo", 100, 255, 250, function(v)
 		Flags.AdmMinRank = v
 		if Flags.AdmMonitor then
-			ScanAll()
+			ScanAll(function()
+				AdmMon.OnUpdate()
+				if admPanel and admPanel.Visible then
+					RefreshPanel()
+				end
+			end)
 		end
 	end)
 
@@ -7659,14 +7696,13 @@ local function _iife_misc()
 			Notify("Monitor de ADMs", "O monitor esta desligado.", "danger")
 			return
 		end
-		ScanAll()
-		task.delay(1.5, function()
+		ScanAll(function()
 			AdmMon.OnUpdate()
 			if admPanel and admPanel.Visible then
 				RefreshPanel()
 			end
+			Notify("Monitor de ADMs", "Varredura concluida.", "success")
 		end)
-		Notify("Monitor de ADMs", "Varredura manual concluida.", "success")
 	end)
 
 	local targetDropdown = AddDropdown(page, "AdmTarget", "Jogador", {}, "--", function() end)
