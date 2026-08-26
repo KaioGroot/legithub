@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.9"
+local VERSION = "v4.0"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -5795,14 +5795,26 @@ do
 	end
 
 	local function BFSmoothMoveTo(targetCFrame, duration)
-		if not Root then return end
-		duration = duration or 0.3
-		local startPos = Root.CFrame
-		local dist = (targetCFrame.Position - startPos.Position).Magnitude
+		if not Root or not Humanoid then return end
+		local targetPos = targetCFrame.Position
+		local dist = (targetPos - Root.Position).Magnitude
 		if dist < 2 then return end
-		local tween = TweenService:Create(Root, TweenInfo.new(duration, Enum.EasingStyle.Linear), { CFrame = targetCFrame })
-		tween:Play()
-		tween.Completed:Wait()
+
+		pcall(function()
+			Humanoid:MoveTo(targetPos)
+		end)
+		wait(math.clamp(dist / 100, 0.1, duration or 0.5))
+
+		if (Root.Position - targetPos).Magnitude > 5 then
+			pcall(function()
+				Character:PivotTo(targetCFrame)
+			end)
+			wait(0.05)
+		end
+
+		if (Root.Position - targetPos).Magnitude > 5 then
+			Root.CFrame = targetCFrame
+		end
 	end
 
 	local function BFAttackMob(mob)
