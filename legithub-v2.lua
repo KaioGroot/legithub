@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v4.6"
+local VERSION = "v4.7"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -6842,19 +6842,15 @@ end
 do
 	local BLOXSTRIKE_ID = 114234929420007
 	local Camera = workspace.CurrentCamera
-	local Mouse = LocalPlayer:GetMouse()
-	local VIM = game:GetService("VirtualInputManager")
+	local UIS = game:GetService("UserInputService")
 
-	local hasDrawing = pcall(function() return Drawing.new("Line") end)
-	local hasMouse1Press = type(mouse1press) == "function"
-	local hasMouseMove = type(MouseMove) == "function"
-
-	Notify("BloxAim", "Drawing: " .. tostring(hasDrawing) .. " | Mouse1: " .. tostring(hasMouse1Press), "success")
+	local hasDrawing = false
+	pcall(function() local t = Drawing.new("Line"); t:Remove(); hasDrawing = true end)
 
 	local BAAim = {
 		enabled = false,
 		fov = 150,
-		smooth = 3,
+		smooth = 4,
 		prediction = 0.145,
 		wallCheck = true,
 		teamCheck = true,
@@ -6873,41 +6869,32 @@ do
 		tracers = false,
 		boxColor = Color3.fromRGB(255, 50, 50),
 		nameColor = Color3.fromRGB(255, 255, 255),
+		maxDist = 1000,
 	}
 
 	local fovCircle = nil
-	local espBillboards = {}
-	local espDrawings = {}
+	local aimConnection = nil
+	local espConnection = nil
+	local trackedPlayers = {}
 
-	local function BAFireWeapon()
-		pcall(function()
-			VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-			VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-		end)
-		if hasMouse1Press then
-			pcall(function()
-				mouse1press()
-				wait(0.015)
-				mouse1release()
-			end)
+	local function BAIsAlive(player)
+		local char = player and player.Character
+		if not char then return false end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local head = char:FindFirstChild("Head")
+		if hum and hum.Health > 0 and root and head then
+			return true, hum, root, head
 		end
+		return false
 	end
 
-	local function BAMoveMouse(targetScreenPos)
-		local centerX = Camera.ViewportSize.X / 2
-		local centerY = Camera.ViewportSize.Y / 2
-		local offsetX = (targetScreenPos.X - centerX) / BAAim.smooth
-		local offsetY = (targetScreenPos.Y - centerY) / BAAim.smooth
-
-		if hasMouseMove then
-			pcall(function()
-				MouseMove(offsetX, offsetY, false)
-			end)
-		else
-			pcall(function()
-				VIM:SendMouseMoveEvent(centerX + offsetX, centerY + offsetY, game)
-			end)
-		end
+	local function BAIsTeammate(player)
+		if not BAAim.teamCheck then return false end
+		local ok, result = pcall(function()
+			return player.Team and player.Team == LocalPlayer.Team
+		end)
+		return ok and result == true
 	end
 
 	local function BACanSeeTarget(targetPart)
@@ -6921,49 +6908,32 @@ do
 		return result == nil
 	end
 
-	local function BAGetEnemies()
-		local enemies = {}
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Character then
-				local hum = player.Character:FindFirstChildOfClass("Humanoid")
-				local root = player.Character:FindFirstChild("HumanoidRootPart")
-				local head = player.Character:FindFirstChild("Head")
-				if hum and hum.Health > 0 and root and head then
-					local isTeam = false
-					pcall(function()
-						if BAAim.teamCheck and player.Team and player.Team == LocalPlayer.Team then
-							isTeam = true
-						end
-					end)
-					if not isTeam then
-						table.insert(enemies, {
-							player = player,
-							root = root,
-							head = head,
-							hum = hum,
-						})
-					end
-				end
-			end
-		end
-		return enemies
-	end
-
-	local function BAGetClosestToMouse()
+	local function BAGetClosestEnemy()
 		local closest = nil
 		local closestDist = BAAim.fov
 		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		local myChar = LocalPlayer.Character
+		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		if not myRoot then return nil end
 
-		for _, enemy in ipairs(BAGetEnemies()) do
-			local targetPos = BAAim.headOnly and enemy.head.Position or enemy.root.Position
-			local predicted = targetPos + (enemy.root.Velocity * BAAim.prediction)
-			local screenPos, onScreen = Camera:WorldToViewportPoint(predicted)
-			if onScreen then
-				local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-				if dist < closestDist then
-					if BACanSeeTarget(enemy.head) then
-						closestDist = dist
-						closest = enemy
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and not BAIsTeammate(player) then
+				local alive, hum, root, head = BAIsAlive(player)
+				if alive then
+					local dist = (root.Position - myRoot.Position).Magnitude
+					if dist <= BAESP.maxDist then
+						local targetPos = BAAim.headOnly and head.Position or root.Position
+						local predicted = targetPos + (root.Velocity * BAAim.prediction)
+						local screenPos, onScreen = Camera:WorldToViewportPoint(predicted)
+						if onScreen then
+							local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+							if screenDist < closestDist then
+								if BACanSeeTarget(head) then
+									closestDist = screenDist
+									closest = { player = player, root = root, head = head, hum = hum }
+								end
+							end
+						end
 					end
 				end
 			end
@@ -6976,20 +6946,29 @@ do
 		local targetPos = BAAim.headOnly and target.head.Position or target.root.Position
 		local predicted = targetPos + (target.root.Velocity * BAAim.prediction)
 
-		local screenPos, onScreen = Camera:WorldToViewportPoint(predicted)
-		if not onScreen then return end
+		local camCF = Camera.CFrame
+		local camPos = camCF.Position
+		local newCF = CFrame.new(camPos, camPos + (predicted - camPos).Unit)
+		Camera.CFrame = camCF:Lerp(newCF, 1 / BAAim.smooth)
+	end
 
-		BAMoveMouse(Vector2.new(screenPos.X, screenPos.Y))
+	local function BAFireWeapon()
+		local char = LocalPlayer.Character
+		if not char then return end
+		local tool = char:FindFirstChildWhichIsA("Tool")
+		if tool then
+			pcall(function() tool:Activate() end)
+		end
+		pcall(function()
+			local vim = game:GetService("VirtualInputManager")
+			vim:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+			vim:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+		end)
 	end
 
 	local function BAUpdateFOV()
-		if fovCircle then
-			pcall(function() fovCircle:Remove() end)
-			fovCircle = nil
-		end
-		if not BAAim.enabled then return end
-		if not hasDrawing then return end
-
+		if fovCircle then pcall(function() fovCircle:Remove() end) fovCircle = nil end
+		if not BAAim.enabled or not hasDrawing then return end
 		pcall(function()
 			fovCircle = Drawing.new("Circle")
 			fovCircle.Visible = true
@@ -6998,182 +6977,187 @@ do
 			fovCircle.Radius = BAAim.fov
 			fovCircle.Filled = false
 			fovCircle.Color = Color3.fromRGB(255, 255, 255)
-			fovCircle.Transparency = 0.7
+			fovCircle.Transparency = 0.6
 			fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 		end)
 	end
 
-	local function BAClearESP()
-		for _, d in pairs(espDrawings) do
-			if d then pcall(function() d:Remove() end) end
-		end
-		espDrawings = {}
+	local function BACreatePlayerESP(player)
+		if trackedPlayers[player] then return end
+		local d = { drawings = {}, visible = false }
+		pcall(function()
+			for i = 1, 4 do
+				local l = Drawing.new("Line")
+				l.Visible = false
+				l.Color = BAESP.boxColor
+				l.Thickness = 1.5
+				d.drawings["box" .. i] = l
+			end
 
-		for _, bb in pairs(espBillboards) do
-			if bb then pcall(function() bb:Destroy() end) end
-		end
-		espBillboards = {}
+			d.drawings.tracer = Drawing.new("Line")
+			d.drawings.tracer.Visible = false
+			d.drawings.tracer.Color = BAESP.boxColor
+			d.drawings.tracer.Thickness = 1
+
+			d.drawings.name = Drawing.new("Text")
+			d.drawings.name.Visible = false
+			d.drawings.name.Color = BAESP.nameColor
+			d.drawings.name.Size = 13
+			d.drawings.name.Center = true
+			d.drawings.name.Outline = true
+
+			d.drawings.dist = Drawing.new("Text")
+			d.drawings.dist.Visible = false
+			d.drawings.dist.Color = Color3.fromRGB(200, 200, 200)
+			d.drawings.dist.Size = 11
+			d.drawings.dist.Center = true
+			d.drawings.dist.Outline = true
+
+			d.drawings.hpBg = Drawing.new("Line")
+			d.drawings.hpBg.Visible = false
+			d.drawings.hpBg.Color = Color3.new(0, 0, 0)
+			d.drawings.hpBg.Thickness = 3
+
+			d.drawings.hpFill = Drawing.new("Line")
+			d.drawings.hpFill.Visible = false
+			d.drawings.hpFill.Thickness = 2
+		end)
+		trackedPlayers[player] = d
+	end
+
+	local function BADestroyPlayerESP(player)
+		local d = trackedPlayers[player]
+		if not d then return end
+		pcall(function()
+			for _, obj in pairs(d.drawings) do
+				if obj then obj:Remove() end
+			end
+		end)
+		trackedPlayers[player] = nil
+	end
+
+	local function BAHidePlayerESP(d)
+		pcall(function()
+			for _, obj in pairs(d.drawings) do
+				if obj then obj.Visible = false end
+			end
+		end)
 	end
 
 	local function BAUpdateESP()
-		BAClearESP()
-		if not BAESP.enabled then return end
+		Camera = workspace.CurrentCamera
+		local myChar = LocalPlayer.Character
+		local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		if not myRoot then
+			for plr, d in pairs(trackedPlayers) do BAHidePlayerESP(d) end
+			return
+		end
 
-		for _, enemy in ipairs(BAGetEnemies()) do
-			local root = enemy.root
-			local head = enemy.head
-			local hum = enemy.hum
-			local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-			if not onScreen then continue end
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer then
+				BACreatePlayerESP(player)
+			end
+		end
 
-			local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-			local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-			local topY = headPos.Y
-			local botY = legPos.Y
-			local height = math.abs(botY - topY)
-			local width = height * 0.6
-			local centerX = rootPos.X
-
-			if hasDrawing then
-				if BAESP.boxes then
-					pcall(function()
-						local outline = Drawing.new("Square")
-						outline.Visible = true
-						outline.Thickness = 3
-						outline.Filled = false
-						outline.Color = Color3.new(0, 0, 0)
-						outline.Position = Vector2.new(centerX - width / 2, topY)
-						outline.Size = Vector2.new(width, height)
-						table.insert(espDrawings, outline)
-
-						local box = Drawing.new("Square")
-						box.Visible = true
-						box.Thickness = 1.5
-						box.Filled = false
-						box.Color = BAESP.boxColor
-						box.Position = Vector2.new(centerX - width / 2, topY)
-						box.Size = Vector2.new(width, height)
-						table.insert(espDrawings, box)
-					end)
-				end
-
-				if BAESP.health then
-					pcall(function()
-						local hpPct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-						local hpH = height * hpPct
-						local hpColor = Color3.fromRGB(255 * (1 - hpPct), 255 * hpPct, 0)
-
-						local bg = Drawing.new("Square")
-						bg.Visible = true
-						bg.Filled = true
-						bg.Color = Color3.new(0, 0, 0)
-						bg.Size = Vector2.new(4, height + 2)
-						bg.Position = Vector2.new(centerX - width / 2 - 8, topY - 1)
-						table.insert(espDrawings, bg)
-
-						local bar = Drawing.new("Square")
-						bar.Visible = true
-						bar.Filled = true
-						bar.Color = hpColor
-						bar.Size = Vector2.new(2, hpH)
-						bar.Position = Vector2.new(centerX - width / 2 - 7, topY + (height - hpH))
-						table.insert(espDrawings, bar)
-					end)
-				end
-
-				if BAESP.names then
-					pcall(function()
-						local t = Drawing.new("Text")
-						t.Visible = true
-						t.Text = enemy.player.Name
-						t.Size = 13
-						t.Center = true
-						t.Outline = true
-						t.Color = BAESP.nameColor
-						t.Position = Vector2.new(centerX, topY - 16)
-						table.insert(espDrawings, t)
-					end)
-				end
-
-				if BAESP.distance then
-					pcall(function()
-						local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-						if myRoot then
-							local d = math.floor((myRoot.Position - root.Position).Magnitude)
-							local t = Drawing.new("Text")
-							t.Visible = true
-							t.Text = d .. "m"
-							t.Size = 11
-							t.Center = true
-							t.Outline = true
-							t.Color = Color3.fromRGB(200, 200, 200)
-							t.Position = Vector2.new(centerX, botY + 4)
-							table.insert(espDrawings, t)
-						end
-					end)
-				end
-
-				if BAESP.tracers then
-					pcall(function()
-						local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-						if myRoot then
-							local tracer = Drawing.new("Line")
-							tracer.Visible = true
-							tracer.Thickness = 1
-							tracer.Color = BAESP.boxColor
-							tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-							tracer.To = Vector2.new(centerX, botY)
-							table.insert(espDrawings, tracer)
-						end
-					end)
-				end
+		for player, d in pairs(trackedPlayers) do
+			if not Players:FindFirstChild(player.Name) then
+				BADestroyPlayerESP(player)
 			else
-				if BAESP.boxes or BAESP.names or BAESP.health then
-					pcall(function()
-						local bb = Instance.new("BillboardGui")
-						bb.Name = "BAESP"
-						bb.Size = UDim2.new(0, 120, 0, 50)
-						bb.StudsOffset = Vector3.new(0, 3.5, 0)
-						bb.AlwaysOnTop = true
-						bb.Adornee = head
-						bb.Parent = head
+				local alive, hum, root, head = BAIsAlive(player)
+				if not alive or (player.Team and player.Team == LocalPlayer.Team and BAAim.teamCheck) then
+					BAHidePlayerESP(d)
+				else
+					local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+					if not onScreen then
+						BAHidePlayerESP(d)
+					else
+						local dist = (root.Position - myRoot.Position).Magnitude
+						if dist > BAESP.maxDist then
+							BAHidePlayerESP(d)
+						else
+							local topPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+							local botPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+							local topY = topPos.Y
+							local botY = botPos.Y
+							local height = math.abs(botY - topY)
+							local width = height / 2
+							local cx = rootPos.X
+							local cy = rootPos.Y
 
-						if BAESP.boxes then
-							local boxFrame = Instance.new("Frame")
-							boxFrame.Size = UDim2.new(0, 60, 0, 80)
-							boxFrame.Position = UDim2.new(0.5, -30, 0, -10)
-							boxFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-							boxFrame.BackgroundTransparency = 0.7
-							boxFrame.BorderColor3 = BAESP.boxColor
-							boxFrame.BorderSizePixel = 2
-							boxFrame.Parent = bb
+							if BAESP.boxes then
+								pcall(function()
+									d.drawings.box1.From = Vector2.new(cx - width, cy - height / 2)
+									d.drawings.box1.To = Vector2.new(cx + width, cy - height / 2)
+									d.drawings.box1.Visible = true
+
+									d.drawings.box2.From = Vector2.new(cx - width, cy + height / 2)
+									d.drawings.box2.To = Vector2.new(cx + width, cy + height / 2)
+									d.drawings.box2.Visible = true
+
+									d.drawings.box3.From = Vector2.new(cx - width, cy - height / 2)
+									d.drawings.box3.To = Vector2.new(cx - width, cy + height / 2)
+									d.drawings.box3.Visible = true
+
+									d.drawings.box4.From = Vector2.new(cx + width, cy - height / 2)
+									d.drawings.box4.To = Vector2.new(cx + width, cy + height / 2)
+									d.drawings.box4.Visible = true
+								end)
+							else
+								for i = 1, 4 do d.drawings["box" .. i].Visible = false end
+							end
+
+							if BAESP.health and hum then
+								pcall(function()
+									local hp = hum.Health / hum.MaxHealth
+									local leftX = cx - width - 5
+									local topLineY = cy - height / 2
+									local botLineY = cy + height / 2
+
+									d.drawings.hpBg.From = Vector2.new(leftX, botLineY)
+									d.drawings.hpBg.To = Vector2.new(leftX, topLineY)
+									d.drawings.hpBg.Visible = true
+
+									d.drawings.hpFill.From = Vector2.new(leftX, botLineY)
+									d.drawings.hpFill.To = Vector2.new(leftX, botLineY - (botLineY - topLineY) * hp)
+									d.drawings.hpFill.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hp)
+									d.drawings.hpFill.Visible = true
+								end)
+							else
+								d.drawings.hpBg.Visible = false
+								d.drawings.hpFill.Visible = false
+							end
+
+							if BAESP.names then
+								pcall(function()
+									d.drawings.name.Text = player.DisplayName or player.Name
+									d.drawings.name.Position = Vector2.new(cx, cy - height / 2 - 16)
+									d.drawings.name.Visible = true
+								end)
+							else
+								d.drawings.name.Visible = false
+							end
+
+							if BAESP.distance then
+								pcall(function()
+									d.drawings.dist.Text = math.floor(dist) .. "m"
+									d.drawings.dist.Position = Vector2.new(cx, cy + height / 2 + 4)
+									d.drawings.dist.Visible = true
+								end)
+							else
+								d.drawings.dist.Visible = false
+							end
+
+							if BAESP.tracers then
+								pcall(function()
+									d.drawings.tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+									d.drawings.tracer.To = Vector2.new(cx, cy + height / 2)
+									d.drawings.tracer.Visible = true
+								end)
+							else
+								d.drawings.tracer.Visible = false
+							end
 						end
-
-						if BAESP.names then
-							local nameLabel = Instance.new("TextLabel")
-							nameLabel.Size = UDim2.new(1, 0, 0, 16)
-							nameLabel.Position = UDim2.new(0, 0, 0, -28)
-							nameLabel.BackgroundTransparency = 1
-							nameLabel.Text = enemy.player.Name
-							nameLabel.TextColor3 = BAESP.nameColor
-							nameLabel.TextStrokeTransparency = 0.5
-							nameLabel.Font = Enum.Font.GothamBold
-							nameLabel.TextSize = 12
-							nameLabel.Parent = bb
-						end
-
-						if BAESP.health then
-							local hpPct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-							local hpBar = Instance.new("Frame")
-							hpBar.Size = UDim2.new(hpPct, 0, 0, 4)
-							hpBar.Position = UDim2.new(0, 0, 1, 4)
-							hpBar.BackgroundColor3 = Color3.fromRGB(255 * (1 - hpPct), 255 * hpPct, 0)
-							hpBar.BorderSizePixel = 0
-							hpBar.Parent = bb
-						end
-
-						table.insert(espBillboards, bb)
-					end)
+					end
 				end
 			end
 		end
@@ -7182,8 +7166,10 @@ do
 	function BAStop()
 		BAAim.enabled = false
 		BAESP.enabled = false
+		if aimConnection then aimConnection:Disconnect() aimConnection = nil end
+		if espConnection then espConnection:Disconnect() espConnection = nil end
 		if fovCircle then pcall(function() fovCircle:Remove() end) fovCircle = nil end
-		BAClearESP()
+		for plr, _ in pairs(trackedPlayers) do BADestroyPlayerESP(plr) end
 		Notify("BloxAim", "Aimbot + ESP desativados.", nil)
 	end
 
@@ -7191,39 +7177,33 @@ do
 		BAAim.enabled = true
 		BAESP.enabled = true
 		BAUpdateFOV()
-		Notify("BloxAim", "Aimbot + ESP ativados! Drawing: " .. tostring(hasDrawing) .. " | Mouse: " .. tostring(hasMouse1Press), "success")
+		Notify("BloxAim", "Aimbot + ESP ativados! Drawing: " .. tostring(hasDrawing), "success")
 
-		spawn(function()
-			while BAAim.enabled do
-				pcall(function()
-					Camera = workspace.CurrentCamera
-					Mouse = LocalPlayer:GetMouse()
-
-					local target = BAGetClosestToMouse()
+		aimConnection = RunService.Heartbeat:Connect(function()
+			pcall(function()
+				Camera = workspace.CurrentCamera
+				if BAAim.enabled then
+					local target = BAGetClosestEnemy()
 					if target then
 						BAAimAt(target)
-
 						if BAAim.triggerbot then
-							wait(BAAim.triggerDelay)
 							BAFireWeapon()
 						end
 					end
-				end)
-				wait(0.01)
-			end
+				end
+			end)
 		end)
 
-		spawn(function()
-			while BAAim.enabled or BAESP.enabled do
-				pcall(BAUpdateESP)
-				if fovCircle then
-					pcall(function()
-						fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-						fovCircle.Radius = BAAim.fov
-					end)
+		espConnection = RunService.Heartbeat:Connect(function()
+			pcall(function()
+				if BAESP.enabled then
+					BAUpdateESP()
 				end
-				wait(0.03)
-			end
+				if fovCircle and BAAim.enabled then
+					fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+					fovCircle.Radius = BAAim.fov
+				end
+			end)
 		end)
 	end
 
@@ -7232,15 +7212,17 @@ do
 		local page = Pages["BloxAim"]
 
 		Paragraph(page, "\xF0\x9F\x8E\xAF BloxAim Pro",
-			"aimbot + ESP exclusivo pro BloxStrike (PlaceId: 114234929420007). Funciona mesmo fora do BloxStrike, mas as features sao otimizadas pra ele.")
+			"aimbot + ESP pro BloxStrike (PlaceId: 114234929420007). Funciona em qualquer jogo.")
 
-		SectionLabel(page, "AIMBOT")
+		SectionLabel(page, "ATIVAR")
 
-		AddToggle(page, "BAAimEnabled", "Ativar Aimbot", false, function(state)
+		AddToggle(page, "BAAimEnabled", "Ativar Aimbot + ESP", false, function(state)
 			if state then BAStart() else BAStop() end
 		end)
 
-		AddToggle(page, "BASilentAim", "Silent Aim (bala vai no inimigo)", false, function(state)
+		SectionLabel(page, "AIMBOT")
+
+		AddToggle(page, "BASilentAim", "Silent Aim (camera trava no inimigo)", false, function(state)
 			BAAim.silentAim = state
 		end)
 
@@ -7252,21 +7234,21 @@ do
 			BAAim.headOnly = state
 		end)
 
-		AddToggle(page, "BAWallCheck", "Wall Check (nao mira atraves de parede)", true, function(state)
+		AddToggle(page, "BAWallCheck", "Wall Check", true, function(state)
 			BAAim.wallCheck = state
 		end)
 
-		AddToggle(page, "BATeamCheck", "Team Check (nao ataca aliado)", true, function(state)
+		AddToggle(page, "BATeamCheck", "Team Check", true, function(state)
 			BAAim.teamCheck = state
 		end)
 
-		SectionLabel(page, "CONFIGURACAO")
+		SectionLabel(page, "AIMBOT CONFIG")
 
-		AddSlider(page, "BAFov", "FOV do Aimbot", 20, 500, 150, function(v)
+		AddSlider(page, "BAFov", "FOV", 20, 500, 150, function(v)
 			BAAim.fov = v
 		end, "")
 
-		AddSlider(page, "BASmooth", "Suavidade", 1, 20, 3, function(v)
+		AddSlider(page, "BASmooth", "Suavidade", 1, 20, 4, function(v)
 			BAAim.smooth = v
 		end, "")
 
@@ -7280,12 +7262,7 @@ do
 
 		SectionLabel(page, "ESP")
 
-		AddToggle(page, "BAESPEnabled", "Ativar ESP", false, function(state)
-			BAESP.enabled = state
-			if not state then BAClearESP() end
-		end)
-
-		AddToggle(page, "BAESPBoxes", "Box ESP", true, function(state)
+		AddToggle(page, "BAESPBoxes", "Box ESP (4 linhas)", true, function(state)
 			BAESP.boxes = state
 		end)
 
@@ -7304,6 +7281,10 @@ do
 		AddToggle(page, "BAESPTracers", "Tracers", false, function(state)
 			BAESP.tracers = state
 		end)
+
+		AddSlider(page, "BAMaxDist", "Max Distancia", 100, 3000, 1000, function(v)
+			BAESP.maxDist = v
+		end, "m")
 	end
 
 	_iife_bloxaim()
