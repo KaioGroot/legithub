@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v5.1"
+local VERSION = "v5.2-MJ"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -8198,7 +8198,7 @@ Create("TextLabel", {
 	Size = UDim2.fromOffset(420, 16),
 	BackgroundTransparency = 1,
 	Font = Enum.Font.GothamMedium,
-	Text = "v2.6 — thrilla Edition — dourado, prata e purpura profunda",
+	Text = "v5.2-MJ — thrilla Edition — dourado, prata e purpura profunda",
 	TextColor3 = Theme.SubText,
 	TextSize = 11,
 	TextTransparency = 0.25,
