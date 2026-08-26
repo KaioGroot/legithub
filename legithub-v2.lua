@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v4.2"
+local VERSION = "v4.3"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -6173,25 +6173,19 @@ do
 
 		table.sort(found, function(a, b) return a.dist < b.dist end)
 
-		local lines = {}
-		local count = 0
-		for _, f in ipairs(found) do
-			if count < 25 then
-				table.insert(lines, f.dist .. "m | " .. f.class .. " | " .. f.name .. " | " .. f.path:sub(1, 60))
-				count = count + 1
-			end
+		if #found == 0 then
+			Notify("Debug", "Nenhum objeto em " .. BF.attackRange .. " studs. Aumente o range.", "danger")
+			return
 		end
 
-		if #lines == 0 then
-			Notify("Debug", "Nenhum objeto encontrado em " .. BF.attackRange .. " studs. Aumente o range.", "danger")
-		else
-			local msg = count .. " objetos encontrados:\n\n" .. table.concat(lines, "\n")
-			Notify("Debug Scan", msg, "success")
-			print("[LegitHub Debug] " .. count .. " objetos em " .. BF.attackRange .. " studs:")
-			for _, f in ipairs(found) do
-				print("  " .. f.dist .. "m | " .. f.class .. " | " .. f.name .. " | " .. f.path)
-			end
+		Notify("Debug", #found .. " objetos! Abra o console (F9) pra ver tudo.", "success")
+		print("========================================")
+		print("[LegitHub Debug] " .. #found .. " objetos em " .. BF.attackRange .. " studs:")
+		print("========================================")
+		for _, f in ipairs(found) do
+			print("[" .. f.dist .. "m] " .. f.class .. " | " .. f.name .. " | " .. f.path)
 		end
+		print("========================================")
 	end
 
 	local function BFItemLoopStart()
