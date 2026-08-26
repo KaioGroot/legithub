@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v4.1"
+local VERSION = "v4.2"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -6142,6 +6142,58 @@ do
 
 	local BFItemLoopRunning = false
 
+	local function BFDebugScan()
+		if not Root then return end
+		local found = {}
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			pcall(function()
+				local pos = nil
+				if obj:IsA("BasePart") then pos = obj.Position
+				elseif obj:IsA("MeshPart") then pos = obj.Position
+				elseif obj:IsA("Tool") and obj:FindFirstChild("Handle") then pos = obj.Handle.Position
+				elseif obj:IsA("ProximityPrompt") and obj.Parent and obj.Parent:IsA("BasePart") then pos = obj.Parent.Position
+				elseif obj:IsA("Model") then
+					local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+					if p then pos = p.Position end
+				end
+				if pos then
+					local dist = (pos - Root.Position).Magnitude
+					if dist < BF.attackRange then
+						table.insert(found, {
+							name = obj.Name,
+							class = obj.ClassName,
+							path = obj:GetFullName(),
+							dist = math.floor(dist),
+							pos = math.floor(pos.X) .. "," .. math.floor(pos.Y) .. "," .. math.floor(pos.Z),
+						})
+					end
+				end
+			end)
+		end
+
+		table.sort(found, function(a, b) return a.dist < b.dist end)
+
+		local lines = {}
+		local count = 0
+		for _, f in ipairs(found) do
+			if count < 25 then
+				table.insert(lines, f.dist .. "m | " .. f.class .. " | " .. f.name .. " | " .. f.path:sub(1, 60))
+				count = count + 1
+			end
+		end
+
+		if #lines == 0 then
+			Notify("Debug", "Nenhum objeto encontrado em " .. BF.attackRange .. " studs. Aumente o range.", "danger")
+		else
+			local msg = count .. " objetos encontrados:\n\n" .. table.concat(lines, "\n")
+			Notify("Debug Scan", msg, "success")
+			print("[LegitHub Debug] " .. count .. " objetos em " .. BF.attackRange .. " studs:")
+			for _, f in ipairs(found) do
+				print("  " .. f.dist .. "m | " .. f.class .. " | " .. f.name .. " | " .. f.path)
+			end
+		end
+	end
+
 	local function BFItemLoopStart()
 		if BFItemLoopRunning then return end
 		BFItemLoopRunning = true
@@ -6391,6 +6443,15 @@ do
 			AddToggle(page, "BFCollectFruits", "Auto-Coletar Frutas", false, function(state)
 				BF.collectFruits = state
 			end)
+
+			SectionLabel(page, "DEBUG")
+
+			AddButton(page, "\xF0\x9F\x90\xDD Escanear Itens no Range (Debug)", Color3.fromRGB(255, 200, 50), function()
+				BFDebugScan()
+			end)
+
+			Paragraph(page, "\xE2\x9A\xA0\xEF\xB8\x8F Debug",
+				"Aperte o botao acima pra ver TUDO que existe perto de voce. Se nao aparecer nada, aumente o range. Se aparecer mas com nomes estranhos, me avisa que eu ajusto.")
 
 			SectionLabel(page, "FARM DE ITENS")
 
