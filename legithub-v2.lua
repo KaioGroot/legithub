@@ -72,15 +72,15 @@ local function Outline(parent, color, transparency, thickness)
 end
 
 local Theme = {
-	Background = Color3.fromRGB(6, 6, 10),
-	Surface   = Color3.fromRGB(24, 22, 34),
-	Card      = Color3.fromRGB(38, 34, 50),
-	CardHover = Color3.fromRGB(50, 44, 66),
-	CardActive= Color3.fromRGB(62, 54, 78),
-	TrackOff  = Color3.fromRGB(50, 44, 62),
-	Stroke    = Color3.fromRGB(220, 200, 160),
-	Text      = Color3.fromRGB(255, 250, 240),
-	SubText   = Color3.fromRGB(170, 160, 140),
+	Background = Color3.fromRGB(10, 10, 16),
+	Surface   = Color3.fromRGB(44, 40, 58),
+	Card      = Color3.fromRGB(58, 52, 74),
+	CardHover = Color3.fromRGB(72, 64, 92),
+	CardActive= Color3.fromRGB(86, 76, 108),
+	TrackOff  = Color3.fromRGB(62, 56, 78),
+	Stroke    = Color3.fromRGB(240, 220, 180),
+	Text      = Color3.fromRGB(255, 252, 245),
+	SubText   = Color3.fromRGB(195, 185, 165),
 	Accent    = Color3.fromRGB(212, 175, 55),
 	Accent2   = Color3.fromRGB(192, 192, 210),
 	Success   = Color3.fromRGB(56, 200, 135),
@@ -256,7 +256,7 @@ local bgImage = Create("ImageLabel", {
 	Size = UDim2.fromScale(1, 1),
 	BackgroundTransparency = 1,
 	Image = "rbxassetid://94583192808180",
-	ImageTransparency = 0.2,
+	ImageTransparency = 0.05,
 	ScaleType = Enum.ScaleType.Crop,
 	ZIndex = 0,
 }, root)
@@ -273,7 +273,7 @@ local bgOverlay = Create("Frame", {
 Corner(bgOverlay, 16)
 
 	Create("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(14, 10, 20), Color3.fromRGB(22, 18, 28)),
+		Color = ColorSequence.new(Color3.fromRGB(20, 18, 30), Color3.fromRGB(38, 34, 52)),
 		Rotation = 90,
 	}, root)
 
@@ -695,7 +695,7 @@ local function Ripple(button, inputPos)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(relX, relY),
 		Size = UDim2.fromOffset(0, 0),
-	BackgroundTransparency = 0.75,
+	BackgroundTransparency = 0.9,
 		BackgroundColor3 = Theme.Text,
 		BorderSizePixel = 0,
 		ZIndex = button.ZIndex + 2,
@@ -8075,7 +8075,7 @@ local function _iife_splash()
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
-	BackgroundColor3 = Color3.fromRGB(6, 6, 10),
+	BackgroundColor3 = Color3.fromRGB(10, 10, 16),
 	BorderSizePixel = 0,
 	GroupTransparency = 0,
 	ZIndex = 60,
