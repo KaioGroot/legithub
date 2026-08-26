@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.8"
+local VERSION = "v3.9"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -5984,18 +5984,91 @@ do
 		if not Root then return end
 		if #BF.itemTargets == 0 then return end
 
+		local function GetPosition(obj)
+			if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+				return obj.Position, obj
+			end
+			if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
+				return obj.Handle.Position, obj.Handle
+			end
+			if obj:IsA("Model") then
+				local primary = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
+				if primary then return primary.Position, primary end
+			end
+			if obj:IsA("ProximityPrompt") then
+				local ppPart = obj.Parent
+				if ppPart and ppPart:IsA("BasePart") then
+					return ppPart.Position, ppPart
+				end
+			end
+			return nil, nil
+		end
+
+		local function GetDisplayName(obj)
+			local name = obj.Name
+			local bb = nil
+			if obj:IsA("Model") then
+				local head = obj:FindFirstChild("Head")
+				if head then bb = head:FindFirstChildOfClass("BillboardGui") end
+			end
+			if not bb and obj:IsA("BasePart") then
+				bb = obj:FindFirstChildOfClass("BillboardGui")
+			end
+			if bb then
+				for _, child in ipairs(bb:GetDescendants()) do
+					if child:IsA("TextLabel") and child.Text ~= "" then
+						name = name .. " " .. child.Text
+						break
+					end
+				end
+			end
+			return string.lower(name)
+		end
+
+		local function MatchesAny(obj)
+			local displayName = GetDisplayName(obj)
+			local fullName = string.lower(obj:GetFullName())
+
+			for _, target in ipairs(BF.itemTargets) do
+				local t = string.lower(target)
+
+				if displayName:find(t) or fullName:find(t) then
+					return true, target
+				end
+
+				for _, preset in ipairs(BF_ITEM_PRESETS) do
+					if preset.name == target then
+						for _, kw in ipairs(preset.keywords) do
+							if displayName:find(string.lower(kw)) or fullName:find(string.lower(kw)) then
+								return true, target
+							end
+						end
+					end
+				end
+			end
+			return false, nil
+		end
+
 		local items = {}
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if not BF.collectItems then break end
-			if (obj:IsA("BasePart") or obj:IsA("Tool") or obj:IsA("MeshPart")) then
-				local handle = obj:IsA("Tool") and obj:FindFirstChild("Handle") or obj
-				if handle and handle:IsA("BasePart") then
-					local dist = (handle.Position - Root.Position).Magnitude
-					if dist < BF.attackRange and dist > 1 then
-						for _, target in ipairs(BF.itemTargets) do
-							if BFItemMatchesTarget(obj, target) then
-								table.insert(items, { obj = obj, handle = handle, dist = dist, target = target })
-								break
+
+		local SCANNED_FOLDERS = {
+			"Items", "Pickups", "Drops", "Spawns", "Loot",
+			"Chests", "Fruits", "DevilFruits", "Treasure",
+			"Collectibles", "Objects", "Map", "Effect",
+		}
+
+		for _, folderName in ipairs(SCANNED_FOLDERS) do
+			local folder = workspace:FindFirstChild(folderName)
+			if folder then
+				for _, obj in ipairs(folder:GetDescendants()) do
+					if not BF.collectItems then break end
+					local pos, part = GetPosition(obj)
+					if pos and part then
+						local dist = (pos - Root.Position).Magnitude
+						if dist < BF.attackRange then
+							local matched, target = MatchesAny(obj)
+							if matched then
+								table.insert(items, { obj = obj, part = part, dist = dist, target = target })
 							end
 						end
 					end
@@ -6003,24 +6076,53 @@ do
 			end
 		end
 
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not BF.collectItems then break end
+			local pos, part = GetPosition(obj)
+			if pos and part then
+				local dist = (pos - Root.Position).Magnitude
+				if dist < BF.attackRange then
+					local matched, target = MatchesAny(obj)
+					if matched then
+						local alreadyAdded = false
+						for _, existing in ipairs(items) do
+							if existing.obj == obj then alreadyAdded = true; break end
+						end
+						if not alreadyAdded then
+							table.insert(items, { obj = obj, part = part, dist = dist, target = target })
+						end
+					end
+				end
+			end
+		end
+
+		if #items == 0 then
+			wait(0.5)
+			return
+		end
+
 		table.sort(items, function(a, b) return a.dist < b.dist end)
+
+		Notify("Farm de Itens", #items .. " itens encontrados! Coletando...", "success")
 
 		for _, item in ipairs(items) do
 			if not BF.collectItems then break end
-			if item.handle and item.handle.Parent then
+			if item.part and item.part.Parent then
 				pcall(function()
-					BFSmoothMoveTo(item.handle.CFrame * CFrame.new(0, 2, 0), 0.15)
-					wait(0.08)
-					BFSmoothMoveTo(item.handle.CFrame, 0.08)
+					BFSmoothMoveTo(item.part.CFrame * CFrame.new(0, 3, 0), 0.15)
 					wait(0.05)
+					BFSmoothMoveTo(item.part.CFrame, 0.08)
+					wait(0.08)
 				end)
 				BF.itemStats.collected = BF.itemStats.collected + 1
+				wait(0.05)
 			end
 		end
 	end
 
 	function BFStop()
 		BF.farming = false
+		BF.collectItems = false
 		BF.currentTarget = nil
 		Notify("Blox Fruits", "Auto-farm pausado.", nil)
 	end
@@ -6040,11 +6142,19 @@ do
 				wait(1)
 			end
 		end)
+	end
+
+	local BFItemLoopRunning = false
+
+	local function BFItemLoopStart()
+		if BFItemLoopRunning then return end
+		BFItemLoopRunning = true
 		spawn(function()
-			while BF.farming do
+			while BF.collectItems do
 				pcall(BFCollectItemTick)
 				wait(0.15)
 			end
+			BFItemLoopRunning = false
 		end)
 	end
 
@@ -6293,6 +6403,12 @@ do
 
 			AddToggle(page, "BFCollectItems", "Ativar Farm de Itens", false, function(state)
 				BF.collectItems = state
+				if state then
+					BFItemLoopStart()
+					Notify("Farm de Itens", "Escaneando mapa por itens selecionados...", "success")
+				else
+					Notify("Farm de Itens", "Farm de itens pausado.", nil)
+				end
 			end)
 
 			local presetToggles = {}
