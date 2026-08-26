@@ -72,19 +72,19 @@ local function Outline(parent, color, transparency, thickness)
 end
 
 local Theme = {
-	Background = Color3.fromRGB(12, 12, 16),
-	Surface   = Color3.fromRGB(20, 20, 26),
-	Card      = Color3.fromRGB(30, 30, 38),
-	CardHover = Color3.fromRGB(40, 40, 50),
-	CardActive= Color3.fromRGB(50, 50, 62),
-	TrackOff  = Color3.fromRGB(45, 45, 56),
-	Stroke    = Color3.fromRGB(255, 255, 255),
-	Text      = Color3.fromRGB(240, 240, 245),
-	SubText   = Color3.fromRGB(120, 120, 140),
-	Accent    = Color3.fromRGB(88, 166, 255),
-	Accent2   = Color3.fromRGB(0, 210, 255),
+	Background = Color3.fromRGB(6, 6, 10),
+	Surface   = Color3.fromRGB(14, 12, 18),
+	Card      = Color3.fromRGB(22, 18, 28),
+	CardHover = Color3.fromRGB(32, 26, 40),
+	CardActive= Color3.fromRGB(42, 34, 52),
+	TrackOff  = Color3.fromRGB(38, 32, 48),
+	Stroke    = Color3.fromRGB(200, 180, 140),
+	Text      = Color3.fromRGB(245, 238, 225),
+	SubText   = Color3.fromRGB(140, 130, 110),
+	Accent    = Color3.fromRGB(212, 175, 55),
+	Accent2   = Color3.fromRGB(192, 192, 210),
 	Success   = Color3.fromRGB(56, 200, 135),
-	Danger    = Color3.fromRGB(245, 65, 75),
+	Danger    = Color3.fromRGB(180, 35, 45),
 }
 
 local GradientRegistry = {}
@@ -157,14 +157,14 @@ local RefreshKeybindUI = nil
 local RebuildKeymapFn = nil
 
 local ACCENT_PRESETS = {
-	{ name = "Azul",     a = Color3.fromRGB(88, 166, 255),  b = Color3.fromRGB(0, 210, 255) },
-	{ name = "Vermelho", a = Color3.fromRGB(245, 65, 75),   b = Color3.fromRGB(255, 140, 80) },
-	{ name = "Roxo",     a = Color3.fromRGB(130, 100, 255), b = Color3.fromRGB(80, 180, 255) },
+	{ name = "Ouro",     a = Color3.fromRGB(212, 175, 55),  b = Color3.fromRGB(255, 215, 100) },
+	{ name = "Prata",    a = Color3.fromRGB(192, 192, 210), b = Color3.fromRGB(220, 220, 240) },
+	{ name = "Vermelho", a = Color3.fromRGB(180, 35, 45),  b = Color3.fromRGB(220, 80, 60) },
+	{ name = "Roxo",     a = Color3.fromRGB(130, 80, 180), b = Color3.fromRGB(180, 130, 220) },
+	{ name = "Azul",     a = Color3.fromRGB(50, 80, 160),  b = Color3.fromRGB(80, 130, 220) },
 	{ name = "Verde",    a = Color3.fromRGB(56, 200, 135),  b = Color3.fromRGB(120, 255, 160) },
-	{ name = "Ouro",     a = Color3.fromRGB(255, 180, 50),  b = Color3.fromRGB(255, 220, 100) },
-	{ name = "Rosa",     a = Color3.fromRGB(255, 90, 170),  b = Color3.fromRGB(255, 160, 210) },
 }
-local CurrentAccentName = "Azul"
+local CurrentAccentName = "Ouro"
 
 local function ApplyAccentPair(a, b)
 	Theme.Accent = a
@@ -247,12 +247,33 @@ local rootShadow = Create("ImageLabel", {
 Corner(root, 16)
 local rootStroke = Outline(root, Theme.Stroke, 0.25, 1)
 	Create("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(242, 230, 234), Color3.fromRGB(168, 152, 160)),
+		Color = ColorSequence.new(Color3.fromRGB(212, 175, 55), Color3.fromRGB(192, 192, 210)),
 		Rotation = 115,
 	}, rootStroke)
 
+local bgImage = Create("ImageLabel", {
+	Name = "BackgroundImage",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Image = "rbxassetid://11087743521",
+	ImageTransparency = 0.72,
+	ScaleType = Enum.ScaleType.Crop,
+	ZIndex = 0,
+}, root)
+Corner(bgImage, 16)
+
+local bgOverlay = Create("Frame", {
+	Name = "BGOverlay",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Theme.Background,
+	BackgroundTransparency = 0.25,
+	BorderSizePixel = 0,
+	ZIndex = 1,
+}, root)
+Corner(bgOverlay, 16)
+
 	Create("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(236, 226, 232), Color3.fromRGB(255, 252, 250)),
+		Color = ColorSequence.new(Color3.fromRGB(14, 10, 20), Color3.fromRGB(22, 18, 28)),
 		Rotation = 90,
 	}, root)
 
@@ -280,7 +301,7 @@ local function AuroraWash(name, pos, size, color, rot)
 end
 
 local auroraA = AuroraWash("AuroraA", UDim2.fromOffset(-90, -70), UDim2.fromOffset(430, 270), Theme.Accent, 25)
-local auroraB = AuroraWash("AuroraB", UDim2.new(1, -120, 1, -200), UDim2.fromOffset(380, 240), Theme.Accent2, -30)
+local auroraB = AuroraWash("AuroraB", UDim2.new(1, -120, 1, -200), UDim2.fromOffset(380, 240), Color3.fromRGB(130, 60, 160), -30)
 
 task.spawn(function()
 	while screenGui.Parent do
@@ -290,6 +311,32 @@ task.spawn(function()
 		Tween(auroraA, 7, { Rotation = 25 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 		Tween(auroraB, 9, { Rotation = -30 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 		task.wait(7)
+	end
+end)
+
+task.spawn(function()
+	local sparkColors = {
+		Color3.fromRGB(212, 175, 55),
+		Color3.fromRGB(192, 192, 210),
+		Color3.fromRGB(255, 240, 200),
+	}
+	while screenGui.Parent do
+		local dot = Create("Frame", {
+			Name = "Sparkle",
+			Position = UDim2.new(math.random() * 0.95 + 0.025, 0, math.random() * 0.95 + 0.025, 0),
+			Size = UDim2.fromOffset(3, 3),
+			BackgroundColor3 = sparkColors[math.random(#sparkColors)],
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			ZIndex = 0,
+		}, root)
+		Corner(dot, 2)
+		task.spawn(function()
+			Tween(dot, 0.3, { Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 })
+			task.wait(0.3)
+			pcall(function() dot:Destroy() end)
+		end)
+		task.wait(math.random() * 0.18 + 0.04)
 	end
 end)
 
@@ -375,10 +422,10 @@ local titleGradient = Create("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Left,
 }, headerBar)
 
-Create("UIGradient", {
-	Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(210, 196, 202)),
-	Rotation = 90,
-}, titleGradient)
+	Create("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(212, 175, 55)),
+		Rotation = 90,
+	}, titleGradient)
 
 Create("TextLabel", {
 	Name = "Tagline",
@@ -736,14 +783,14 @@ local function MakePage(name, layoutOrder)
 	local activeGlow = Create("Frame", {
 		Name = "ActiveGlow",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(126, 44, 58),
+		BackgroundColor3 = Color3.fromRGB(60, 40, 20),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 0,
 	}, tabBtn)
 	Corner(activeGlow, 9)
 	local glowGrad = Create("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(252, 226, 233), Color3.fromRGB(206, 156, 168)),
+		Color = ColorSequence.new(Color3.fromRGB(212, 175, 55), Color3.fromRGB(130, 60, 160)),
 		Rotation = 115,
 	}, activeGlow)
 	table.insert(TintRegistry, { bg = activeGlow, grad = glowGrad })
@@ -8028,7 +8075,7 @@ local function _iife_splash()
 local splash = Create("CanvasGroup", {
 	Name = "Splash",
 	Size = UDim2.fromScale(1, 1),
-	BackgroundColor3 = Color3.fromRGB(18, 15, 19),
+	BackgroundColor3 = Color3.fromRGB(6, 6, 10),
 	BorderSizePixel = 0,
 	GroupTransparency = 0,
 	ZIndex = 60,
@@ -8092,7 +8139,7 @@ local splashTitle = Create("TextLabel", {
 	ZIndex = 61,
 }, splash)
 	Create("UIGradient", {
-		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(214, 198, 206)),
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(212, 175, 55)),
 		Rotation = 90,
 	}, splashTitle)
 
@@ -8102,7 +8149,7 @@ Create("TextLabel", {
 	Size = UDim2.fromOffset(320, 16),
 	BackgroundTransparency = 1,
 	Font = Enum.Font.GothamBold,
-	Text = "U N I V E R S A L   T O O L K I T",
+	Text = "M I C H A E L   E D I T I O N",
 	TextColor3 = Theme.SubText,
 	TextSize = 10,
 	ZIndex = 61,
@@ -8151,7 +8198,7 @@ Create("TextLabel", {
 	Size = UDim2.fromOffset(420, 16),
 	BackgroundTransparency = 1,
 	Font = Enum.Font.GothamMedium,
-	Text = "v2.6 — teclas de atalho, busca, bolha flutuante, hitbox real e mais",
+	Text = "v2.6 — thrilla Edition — dourado, prata e purpura profunda",
 	TextColor3 = Theme.SubText,
 	TextSize = 11,
 	TextTransparency = 0.25,
