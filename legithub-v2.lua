@@ -256,7 +256,7 @@ local bgImage = Create("ImageLabel", {
 	Size = UDim2.fromScale(1, 1),
 	BackgroundTransparency = 1,
 	Image = "rbxassetid://94583192808180",
-	ImageTransparency = 0.72,
+	ImageTransparency = 0.45,
 	ScaleType = Enum.ScaleType.Crop,
 	ZIndex = 0,
 }, root)
@@ -266,7 +266,7 @@ local bgOverlay = Create("Frame", {
 	Name = "BGOverlay",
 	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Theme.Background,
-	BackgroundTransparency = 0.25,
+	BackgroundTransparency = 0.55,
 	BorderSizePixel = 0,
 	ZIndex = 1,
 }, root)
