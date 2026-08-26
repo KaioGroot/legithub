@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v4.3"
+local VERSION = "v4.4"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -6607,6 +6607,134 @@ do
 			AddSlider(page, "BFAttackSpeed", "Velocidade do Ataque", 0.1, 1, 0.3, function(v)
 				BF.attackSpeed = v
 			end, "s")
+
+			SectionLabel(page, "MAPAS & TELEPORT")
+
+			Paragraph(page, "\xF0\x9F\x93\xBA Mapas do Blox Fruits",
+				"Selecione um mapa e aperte Teleport. O sistema procura o NPC de quest mais proximo naquela ilha e teleporta voce la. Depois e so ativar o farm de itens!")
+
+			local BF_ISLANDS = {
+				{ name = "Starter Island", level = "1-15", sea = "1", keywords = {"Bandit", "Monkey", "Quest"} },
+				{ name = "Marine Fortress", level = "15-30", sea = "1", keywords = {"Marine", "Vice Admiral"} },
+				{ name = "Jungle", level = "30-60", sea = "1", keywords = {"Gorilla", "Jungle Quest"} },
+				{ name = "Pirate Village", level = "60-120", sea = "1", keywords = {"Pirate", "Bobby"} },
+				{ name = "Desert", level = "120-200", sea = "1", keywords = {"Sand Bandit", "Desert"} },
+				{ name = "Frozen Village", level = "200-350", sea = "1", keywords = {"Yeti", "Snow", "Ice"} },
+				{ name = "Fountain City", level = "350-450", sea = "1", keywords = {"City", "Fountain"} },
+				{ name = "Magma Village", level = "450-550", sea = "1", keywords = {"Magma", "Admiral"} },
+				{ name = "Upper Skylands", level = "550-625", sea = "1", keywords = {"Sky", "Bandit"} },
+				{ name = "Underwater City", level = "625-700", sea = "1", keywords = {"Fish", "Underwater"} },
+				{ name = "Kingdom of Rose", level = "700-850", sea = "2", keywords = {"Rose", "Diamond"} },
+				{ name = "Green Zone", level = "850-950", sea = "2", keywords = {"Zombie", "Green"} },
+				{ name = "Graveyard Island", level = "950-1075", sea = "2", keywords = {"Graveyard", "Saw", "Undead"} },
+				{ name = "Snow Mountain", level = "1075-1200", sea = "2", keywords = {"Snow Wolf", "Viking"} },
+				{ name = "Hot and Cold", level = "1200-1325", sea = "2", keywords = {"Hot", "Cold", "Elemental"} },
+				{ name = "Cursed Ship", level = "1325-1425", sea = "2", keywords = {"Cursed", "Ship"} },
+				{ name = "Ice Castle", level = "1425-1500", sea = "2", keywords = {"Ice Castle", "Admiral"} },
+				{ name = "Forgotten Island", level = "1475-1500", sea = "2", keywords = {"Forgotten", "Ancient"} },
+				{ name = "Port Town", level = "1500-1600", sea = "3", keywords = {"Port", "Captain"} },
+				{ name = "Hydra Island", level = "1600-1775", sea = "3", keywords = {"Hydra", "Warrior"} },
+				{ name = "Great Tree", level = "1775-1925", sea = "3", keywords = {"Tree", "Spirit"} },
+				{ name = "Tiki Outpost", level = "1925-2075", sea = "3", keywords = {"Tiki", "Outpost"} },
+				{ name = "Sea of Treats", level = "2075-2200", sea = "3", keywords = {"Treat", "Candy", "Cookie"} },
+				{ name = "Chocolate Land", level = "2200-2325", sea = "3", keywords = {"Chocolate", "Cocoa"} },
+				{ name = "Haunted Castle", level = "2325-2450", sea = "3", keywords = {"Haunted", "Castle", "Skeleton"} },
+				{ name = "Kitsune Island", level = "2450-2550", sea = "3", keywords = {"Kitsune", "Fox"} },
+				{ name = "Leviathan", level = "2550+", sea = "3", keywords = {"Leviathan", "Sea Beast"} },
+			}
+
+			local function BFTeleportToIsland(island)
+				if not Root then return end
+				Notify("Teleport", "Procurando " .. island.name .. "...", "success")
+				local found = false
+				for _, obj in ipairs(workspace:GetDescendants()) do
+					if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
+						local objName = string.lower(obj.Name)
+						local fullName = string.lower(obj:GetFullName())
+						for _, kw in ipairs(island.keywords) do
+							if objName:find(string.lower(kw)) or fullName:find(string.lower(kw)) then
+								local hum = obj:FindFirstChildOfClass("Humanoid")
+								if hum and hum.Health > 0 then
+									pcall(function()
+										Root.CFrame = obj.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
+									end)
+									Notify("Teleport", "Chegou em " .. island.name .. "! (" .. island.level .. ")", "success")
+									found = true
+									break
+								end
+							end
+						end
+						if found then break end
+					end
+				end
+				if not found then
+					Notify("Teleport", "NPC de " .. island.name .. " nao encontrado. Tentando spawn da ilha...", nil)
+					for _, obj in ipairs(workspace:GetDescendants()) do
+						if obj:IsA("BasePart") then
+							local objName = string.lower(obj.Name)
+							for _, kw in ipairs(island.keywords) do
+								if objName:find(string.lower(kw)) then
+									pcall(function()
+										Root.CFrame = obj.CFrame * CFrame.new(0, 5, 0)
+									end)
+									Notify("Teleport", "Teleportado pra area de " .. island.name, "success")
+									found = true
+									break
+								end
+							end
+							if found then break end
+						end
+					end
+				end
+				if not found then
+					Notify("Teleport", "Nao conseguiu encontrar " .. island.name .. ". Tente outro mapa.", "danger")
+				end
+			end
+
+			local currentSea = "1"
+			for _, island in ipairs(BF_ISLANDS) do
+				if island.sea ~= currentSea then
+					currentSea = island.sea
+					SectionLabel(page, "MAR " .. currentSea)
+				end
+
+				local islandCard = Create("Frame", {
+					Size = UDim2.new(1, 0, 0, 38),
+					BackgroundColor3 = Theme.Card,
+					BorderSizePixel = 0,
+					LayoutOrder = page.Add(function(o) return o end),
+				}, page.Scroll)
+				Corner(islandCard, 8)
+				Outline(islandCard, Theme.Stroke, 0.5)
+
+				Create("TextLabel", {
+					Size = UDim2.new(1, -90, 1, 0),
+					Position = UDim2.fromOffset(12, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamMedium,
+					Text = island.name .. "  |  Lv. " .. island.level,
+					TextColor3 = Theme.Text,
+					TextSize = 11,
+					TextXAlignment = Enum.TextXAlignment.Left,
+				}, islandCard)
+
+				local tpBtn = Create("TextButton", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -8, 0.5, 0),
+					Size = UDim2.fromOffset(65, 26),
+					BackgroundColor3 = Theme.Accent,
+					Font = Enum.Font.GothamBold,
+					Text = "Teleport",
+					TextColor3 = Color3.new(1, 1, 1),
+					TextSize = 10,
+					AutoButtonColor = false,
+				}, islandCard)
+				Corner(tpBtn, 6)
+
+				tpBtn.MouseButton1Click:Connect(function()
+					BFTeleportToIsland(island)
+				end)
+			end
 
 		elseif game.PlaceId == 8737899170 then
 			SectionLabel(page, "PET SIMULATOR 99")
