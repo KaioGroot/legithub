@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v3.7"
+local VERSION = "v3.8"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -5596,8 +5596,10 @@ do
 
 	local BF = {
 		farming = false, acceptQuest = false, collectFruits = false,
-		autoAttack = true, attackRange = 100, distance = 4, attackSpeed = 0.3,
-		moveDelay = 0.5, currentTarget = nil, lastAttack = 0,
+		collectItems = false, autoAttack = true, attackRange = 100,
+		distance = 4, attackSpeed = 0.3, moveDelay = 0.5,
+		currentTarget = nil, lastAttack = 0, itemTargets = {},
+		itemStats = { collected = 0, beli = 0, fragments = 0 },
 	}
 
 	local MOB_FOLDER_NAMES = {
@@ -5935,6 +5937,88 @@ do
 		end
 	end
 
+	local BF_ITEM_PRESETS = {
+		{ name = "Chest (Diamond)", keywords = {"diamond", "chest"}, value = "high", icon = "\xF0\x9F\x92\x8E" },
+		{ name = "Chest (Gold)", keywords = {"gold", "chest"}, value = "high", icon = "\xF0\x9F\x92\xB0" },
+		{ name = "Chest (Silver)", keywords = {"silver", "chest"}, value = "medium", icon = "\xF0\x9F\x92\xB0" },
+		{ name = "Chest (Basic)", keywords = {"chest", "cofre"}, value = "low", icon = "\xF0\x9F\x93\xA6" },
+		{ name = "Devil Fruit", keywords = {"fruit", "devil", "fruta"}, value = "legendary", icon = "\xF0\x9F\x8D\x8E" },
+		{ name = "Treasure", keywords = {"treasure", "tesouro", "loot"}, value = "high", icon = "\xF0\x9F\x92\xB2" },
+		{ name = "Material", keywords = {"material", "wings", "scale", "bone", "scrap"}, value = "medium", icon = "\xE2\x9A\x99\xEF\xB8\x8F" },
+		{ name = "Flower (Blue)", keywords = {"blue flower", "flower b"}, value = "medium", icon = "\xF0\x9F\x8C\xB9" },
+		{ name = "Flower (Red)", keywords = {"red flower", "flower r"}, value = "medium", icon = "\xF0\x9F\x8C\xBA" },
+		{ name = "Flower (Yellow)", keywords = {"yellow flower", "flower y"}, value = "medium", icon = "\xF0\x9F\x8C\xBB" },
+		{ name = "Beli Drop", keywords = {"beli", "money", "dinheiro", "moeda"}, value = "low", icon = "\xF0\x9F\x92\xB5" },
+		{ name = "Fragment", keywords = {"fragment", "frag"}, value = "high", icon = "\xF0\x9F\x94\xB7" },
+		{ name = "Quest Item", keywords = {"quest item", "key", "chave"}, value = "high", icon = "\xF0\x9F\x94\x91" },
+		{ name = "Boss Drop", keywords = {"boss", "legendary", "rare"}, value = "legendary", icon = "\xF0\x9F\x91\xB9" },
+		{ name = "Sword", keywords = {"sword", "espada", "blade"}, value = "high", icon = "\xE2\x9A\x94" },
+		{ name = "Gun", keywords = {"gun", "pistol", "cannon", "arma"}, value = "high", icon = "\xF0\x9F\x94\xAB" },
+		{ name = "Accessory", keywords = {"accessory", "acessorio", "hat", "cloak"}, value = "high", icon = "\xF0\x9F\x8E\xA9" },
+	}
+
+	local function BFItemMatchesTarget(obj, targetName)
+		local objName = string.lower(obj.Name)
+		local objPath = string.lower(obj:GetFullName())
+
+		for _, preset in ipairs(BF_ITEM_PRESETS) do
+			if preset.name == targetName then
+				for _, kw in ipairs(preset.keywords) do
+					if objName:find(string.lower(kw)) or objPath:find(string.lower(kw)) then
+						return true
+					end
+				end
+			end
+		end
+
+		if objName:find(string.lower(targetName)) or objPath:find(string.lower(targetName)) then
+			return true
+		end
+
+		return false
+	end
+
+	local function BFCollectItemTick()
+		if not BF.collectItems or not Root then return end
+		UpdateRoot()
+		if not Root then return end
+		if #BF.itemTargets == 0 then return end
+
+		local items = {}
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if not BF.collectItems then break end
+			if (obj:IsA("BasePart") or obj:IsA("Tool") or obj:IsA("MeshPart")) then
+				local handle = obj:IsA("Tool") and obj:FindFirstChild("Handle") or obj
+				if handle and handle:IsA("BasePart") then
+					local dist = (handle.Position - Root.Position).Magnitude
+					if dist < BF.attackRange and dist > 1 then
+						for _, target in ipairs(BF.itemTargets) do
+							if BFItemMatchesTarget(obj, target) then
+								table.insert(items, { obj = obj, handle = handle, dist = dist, target = target })
+								break
+							end
+						end
+					end
+				end
+			end
+		end
+
+		table.sort(items, function(a, b) return a.dist < b.dist end)
+
+		for _, item in ipairs(items) do
+			if not BF.collectItems then break end
+			if item.handle and item.handle.Parent then
+				pcall(function()
+					BFSmoothMoveTo(item.handle.CFrame * CFrame.new(0, 2, 0), 0.15)
+					wait(0.08)
+					BFSmoothMoveTo(item.handle.CFrame, 0.08)
+					wait(0.05)
+				end)
+				BF.itemStats.collected = BF.itemStats.collected + 1
+			end
+		end
+	end
+
 	function BFStop()
 		BF.farming = false
 		BF.currentTarget = nil
@@ -5954,6 +6038,12 @@ do
 			while BF.farming do
 				pcall(BFAutoCollectFruitsTick)
 				wait(1)
+			end
+		end)
+		spawn(function()
+			while BF.farming do
+				pcall(BFCollectItemTick)
+				wait(0.15)
 			end
 		end)
 	end
@@ -6178,7 +6268,7 @@ do
 			SectionLabel(page, "BLOX FRUITS")
 
 			Paragraph(page, "\xF0\x9F\x8D\x8E Blox Fruits Farm",
-				"Detectamos que voce esta em Blox Fruits! Auto-farm com deteccao inteligente de NPCs vs Mobs. Detecta por: nome, pasta, health bar, Team, BillboardGui e keywords. So ataca inimigos reais.")
+				"Detectamos que voce esta em Blox Fruits! Auto-farm com deteccao inteligente de NPCs vs Mobs + farm de itens. Coleta baús, frutas, materiais, flores e itens customizados automaticamente.")
 
 			AddToggle(page, "BFAutoFarm", "Ativar Auto-Farm (Mobs + Quest)", false, function(state)
 				if state then BFStart() else BFStop() end
@@ -6195,6 +6285,149 @@ do
 			AddToggle(page, "BFCollectFruits", "Auto-Coletar Frutas", false, function(state)
 				BF.collectFruits = state
 			end)
+
+			SectionLabel(page, "FARM DE ITENS")
+
+			Paragraph(page, "\xF0\x9F\x92\x8E Farm de Itens",
+				"Selecione os itens que quer farmar. O sistema escaneia o mapa inteiro e coleta tudo automaticamente. Quanto mais itens selecionados, mais rapido voce farma. Use o input customizado pra itens especificos.")
+
+			AddToggle(page, "BFCollectItems", "Ativar Farm de Itens", false, function(state)
+				BF.collectItems = state
+			end)
+
+			local presetToggles = {}
+			local presetNames = {}
+			for _, preset in ipairs(BF_ITEM_PRESETS) do
+				table.insert(presetNames, preset.name)
+			end
+
+			for _, preset in ipairs(BF_ITEM_PRESETS) do
+				AddToggle(page, "BFItem_" .. preset.name, preset.icon .. " " .. preset.name, false, function(state)
+					if state then
+						table.insert(BF.itemTargets, preset.name)
+					else
+						for i = #BF.itemTargets, 1, -1 do
+							if BF.itemTargets[i] == preset.name then
+								table.remove(BF.itemTargets, i)
+								break
+							end
+						end
+					end
+				end)
+			end
+
+			SectionLabel(page, "ITEM CUSTOMIZADO")
+
+			Paragraph(page, "\xE2\x9C\x8D\xEF\xB8\x8F Input Manual",
+				"Digite o nome exato do item que quer farmar e aperte Enter. Pode adicionar multiplos itens. Exemplos: 'Diamond Chest', 'Flame Fruit', 'Angel Wings', 'Master Key'.")
+
+			local customItemHolder = Create("Frame", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundColor3 = Theme.Card,
+				BorderSizePixel = 0,
+				LayoutOrder = page.Add(function(o) return o end),
+			}, page.Scroll)
+			Corner(customItemHolder, 10)
+			Outline(customItemHolder, Theme.Stroke, 0.6)
+
+			local customItemInput = Create("TextBox", {
+				Size = UDim2.new(1, -90, 1, -8),
+				Position = UDim2.fromOffset(12, 4),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Gotham,
+				Text = "",
+				PlaceholderText = "Digite o nome do item...",
+				PlaceholderColor3 = Theme.SubText,
+				TextColor3 = Theme.Text,
+				TextSize = 12,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ClearTextOnFocus = false,
+			}, customItemHolder)
+
+			local addBtn = Create("TextButton", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -8, 0.5, 0),
+				Size = UDim2.fromOffset(60, 28),
+				BackgroundColor3 = Theme.Accent,
+				Font = Enum.Font.GothamBold,
+				Text = "+ Add",
+				TextColor3 = Color3.new(1, 1, 1),
+				TextSize = 11,
+				AutoButtonColor = false,
+			}, customItemHolder)
+			Corner(addBtn, 6)
+
+			local customItemsLabel = Create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 20),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Gotham,
+				Text = "Itens customizados: nenhum",
+				TextColor3 = Theme.SubText,
+				TextSize = 11,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				LayoutOrder = page.Add(function(o) return o end),
+			}, page.Scroll)
+
+			local function UpdateCustomItemsLabel()
+				if #BF.itemTargets == 0 then
+					customItemsLabel.Text = "Itens selecionados: nenhum"
+				else
+					customItemsLabel.Text = "Itens selecionados (" .. #BF.itemTargets .. "): " .. table.concat(BF.itemTargets, ", ")
+				end
+			end
+
+			addBtn.MouseButton1Click:Connect(function()
+				local text = customItemInput.Text
+				if text and text ~= "" then
+					local alreadyExists = false
+					for _, t in ipairs(BF.itemTargets) do
+						if string.lower(t) == string.lower(text) then
+							alreadyExists = true
+							break
+						end
+					end
+					if not alreadyExists then
+						table.insert(BF.itemTargets, text)
+						customItemInput.Text = ""
+						UpdateCustomItemsLabel()
+						Notify("Farm de Itens", "Item adicionado: " .. text, "success")
+					else
+						Notify("Farm de Itens", "Item ja esta na lista.", nil)
+					end
+				end
+			end)
+
+			customItemInput.FocusLost:Connect(function(enterPressed)
+				if enterPressed then
+					addBtn.MouseButton1Click:Connect(function() end)()
+				end
+			end)
+
+			SectionLabel(page, "ESTATISTICAS")
+
+			local statsLabel = Create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 30),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Gotham,
+				Text = "Itens coletados: 0 | Itens ativos: 0",
+				TextColor3 = Theme.SubText,
+				TextSize = 11,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				LayoutOrder = page.Add(function(o) return o end),
+			}, page.Scroll)
+
+			spawn(function()
+				while true do
+					wait(1)
+					pcall(function()
+						statsLabel.Text = "Itens coletados: " .. BF.itemStats.collected ..
+							" | Itens ativos: " .. #BF.itemTargets ..
+							" | Mobs ativos: " .. (BF.autoAttack and "SIM" or "NAO")
+					end)
+				end
+			end)
+
+			SectionLabel(page, "VELOCIDADE")
 
 			AddSlider(page, "BFAttackRange", "Range de Ataque", 10, 300, 100, function(v)
 				BF.attackRange = v
