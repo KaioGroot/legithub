@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v4.7"
+local VERSION = "v5.0"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -72,19 +72,19 @@ local function Outline(parent, color, transparency, thickness)
 end
 
 local Theme = {
-	Background = Color3.fromRGB(23, 20, 26),
-	Surface = Color3.fromRGB(32, 28, 36),
-	Card = Color3.fromRGB(44, 39, 49),
-	CardHover = Color3.fromRGB(58, 51, 63),
-	CardActive = Color3.fromRGB(74, 65, 79),
-	TrackOff = Color3.fromRGB(63, 55, 68),
-	Stroke = Color3.fromRGB(255, 255, 255),
-	Text = Color3.fromRGB(248, 246, 251),
-	SubText = Color3.fromRGB(160, 151, 168),
-	Accent = Color3.fromRGB(255, 64, 84),
-	Accent2 = Color3.fromRGB(255, 138, 76),
-	Success = Color3.fromRGB(80, 220, 150),
-	Danger = Color3.fromRGB(255, 49, 60),
+	Background = Color3.fromRGB(12, 12, 16),
+	Surface   = Color3.fromRGB(20, 20, 26),
+	Card      = Color3.fromRGB(30, 30, 38),
+	CardHover = Color3.fromRGB(40, 40, 50),
+	CardActive= Color3.fromRGB(50, 50, 62),
+	TrackOff  = Color3.fromRGB(45, 45, 56),
+	Stroke    = Color3.fromRGB(255, 255, 255),
+	Text      = Color3.fromRGB(240, 240, 245),
+	SubText   = Color3.fromRGB(120, 120, 140),
+	Accent    = Color3.fromRGB(88, 166, 255),
+	Accent2   = Color3.fromRGB(0, 210, 255),
+	Success   = Color3.fromRGB(56, 200, 135),
+	Danger    = Color3.fromRGB(245, 65, 75),
 }
 
 local GradientRegistry = {}
@@ -157,14 +157,14 @@ local RefreshKeybindUI = nil
 local RebuildKeymapFn = nil
 
 local ACCENT_PRESETS = {
-	{ name = "Vermelho", a = Color3.fromRGB(255, 64, 84),  b = Color3.fromRGB(255, 138, 76) },
-	{ name = "Roxo",     a = Color3.fromRGB(124, 92, 255), b = Color3.fromRGB(0, 190, 255) },
-	{ name = "Azul",     a = Color3.fromRGB(64, 140, 255), b = Color3.fromRGB(0, 225, 255) },
-	{ name = "Verde",    a = Color3.fromRGB(52, 199, 123), b = Color3.fromRGB(160, 255, 120) },
-	{ name = "Ouro",     a = Color3.fromRGB(255, 170, 40), b = Color3.fromRGB(255, 220, 90) },
-	{ name = "Rosa",     a = Color3.fromRGB(255, 80, 170), b = Color3.fromRGB(255, 150, 210) },
+	{ name = "Azul",     a = Color3.fromRGB(88, 166, 255),  b = Color3.fromRGB(0, 210, 255) },
+	{ name = "Vermelho", a = Color3.fromRGB(245, 65, 75),   b = Color3.fromRGB(255, 140, 80) },
+	{ name = "Roxo",     a = Color3.fromRGB(130, 100, 255), b = Color3.fromRGB(80, 180, 255) },
+	{ name = "Verde",    a = Color3.fromRGB(56, 200, 135),  b = Color3.fromRGB(120, 255, 160) },
+	{ name = "Ouro",     a = Color3.fromRGB(255, 180, 50),  b = Color3.fromRGB(255, 220, 100) },
+	{ name = "Rosa",     a = Color3.fromRGB(255, 90, 170),  b = Color3.fromRGB(255, 160, 210) },
 }
-local CurrentAccentName = "Vermelho"
+local CurrentAccentName = "Azul"
 
 local function ApplyAccentPair(a, b)
 	Theme.Accent = a
@@ -492,7 +492,7 @@ Create("TextLabel", {
 	Position = UDim2.fromOffset(9, 0),
 	Size = UDim2.fromOffset(18, 28),
 	Font = Enum.Font.GothamBold,
-	Text = "🔍",
+	Text = "⌕",
 	TextSize = 11,
 	TextColor3 = Theme.SubText,
 }, searchBoxHolder)
@@ -662,13 +662,13 @@ local function Ripple(button, inputPos)
 end
 
 local TAB_ICONS = {
-	Player = "🏃",
-	Visuals = "👁",
-	Mundo = "🌍",
-	Spy = "📡",
-	Farm = "🌾",
-	BloxAim = "🎯",
-	Misc = "🛠",
+	Player = "◈",
+	Visuals = "◉",
+	Mundo = "◎",
+	Spy = "◇",
+	Farm = "▣",
+	BloxAim = "△",
+	Misc = "⬡",
 }
 
 local function MakePage(name, layoutOrder)
@@ -1119,19 +1119,19 @@ local function RegisterOption(name, option, page, label, widget)
 end
 
 local BTN_ICONS = {
-	{ "Teleportar", "⚡" },
-	{ "Reentrar", "🔄" },
-	{ "Copiar JobId", "🆔" },
-	{ "Copiar ferramentas", "🧰" },
-	{ "Salvar configura", "💾" },
-	{ "Descarregar", "⏏" },
-	{ "Verificar agora", "🔎" },
-	{ "Marcar posicao", "📌" },
-	{ "Voltar a posicao", "🧭" },
-	{ "Marcar jogador como ADM", "🚩" },
-	{ "Remover marcacao", "🚫" },
-	{ "Exportar perfil", "📤" },
-	{ "Importar perfil", "📥" },
+	{ "Teleportar", "→" },
+	{ "Reentrar", "↻" },
+	{ "Copiar JobId", "#" },
+	{ "Copiar ferramentas", "⊞" },
+	{ "Salvar configura", "◆" },
+	{ "Descarregar", "▸" },
+	{ "Verificar agora", "⟳" },
+	{ "Marcar posicao", "⊙" },
+	{ "Voltar a posicao", "◎" },
+	{ "Marcar jogador como ADM", "▲" },
+	{ "Remover marcacao", "✕" },
+	{ "Exportar perfil", "↗" },
+	{ "Importar perfil", "↙" },
 }
 
 local function BtnIcon(text)
@@ -2394,7 +2394,7 @@ local function ApplyReach(handle)
 			box.Name = "LegitHubReach"
 			box.Adornee = handle
 			box.LineThickness = 0.02
-			box.Color3 = Color3.fromRGB(255, 64, 84)
+			box.Color3 = Color3.fromRGB(88, 166, 255)
 			box.Parent = handle
 		end
 	end)
@@ -2678,11 +2678,11 @@ local RemoteSpyOriginalNamecall = nil
 local RemoteSpyRefreshUI = nil
 
 local RS_TYPE_ICONS = {
-	FireServer = "📤",
-	InvokeServer = "📤",
-	FireClient = "📥",
-	InvokeClient = "📥",
-	FireAllClients = "📡",
+	FireServer = "↗",
+	InvokeServer = "↗",
+	FireClient = "↙",
+	InvokeClient = "↙",
+	FireAllClients = "⇒",
 }
 
 local function RSSerializeArg(val, depth)
@@ -2841,7 +2841,7 @@ local function _iife_adm()
 	Flags.AdmSound = false
 	Flags.AdmMinRank = 250
 
-	local EspAdminColor = Color3.fromRGB(255, 70, 90)
+	local EspAdminColor = Color3.fromRGB(245, 65, 75)
 
 	AdmMon = {
 		Info = {},
@@ -3000,7 +3000,7 @@ local function _iife_adm()
 			Position = UDim2.fromOffset(12, 0),
 			Size = UDim2.fromOffset(22, 40),
 			Font = Enum.Font.GothamBold,
-			Text = "👁",
+			Text = "◉",
 			TextSize = 15,
 			TextYAlignment = Enum.TextYAlignment.Center,
 			ZIndex = 61,
@@ -4316,7 +4316,7 @@ local function _iife_player()
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamMedium,
 		Text = "",
-		PlaceholderText = "🔍  Pesquisar jogador...",
+		PlaceholderText = "⌕  Pesquisar jogador...",
 		PlaceholderColor3 = Theme.SubText,
 		TextColor3 = Theme.Text,
 		TextSize = 12,
@@ -4943,7 +4943,7 @@ local function _iife_mundo()
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamMedium,
 		Text = "",
-		PlaceholderText = "📍  Nome do waypoint (opcional)",
+		PlaceholderText = "⊙  Nome do waypoint (opcional)",
 		PlaceholderColor3 = Theme.SubText,
 		TextColor3 = Theme.Text,
 		TextSize = 12,
@@ -5107,7 +5107,7 @@ local function _iife_spy()
 		Position = UDim2.fromOffset(10, 0),
 		Size = UDim2.fromOffset(18, 38),
 		Font = Enum.Font.GothamBold,
-		Text = "🔍",
+		Text = "⌕",
 		TextSize = 12,
 		TextColor3 = Theme.SubText,
 	}, rsFilterHolder)
@@ -5152,7 +5152,7 @@ local function _iife_spy()
 		BackgroundColor3 = Theme.Danger,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamBold,
-		Text = "🗑  Limpar tudo",
+		Text = "✕  Limpar tudo",
 		TextColor3 = Color3.new(1, 1, 1),
 		TextSize = 12,
 		AutoButtonColor = false,
@@ -5166,7 +5166,7 @@ local function _iife_spy()
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamBold,
-		Text = "📋  Copiar todos",
+		Text = "⊞  Copiar todos",
 		TextColor3 = Color3.new(1, 1, 1),
 		TextSize = 12,
 		AutoButtonColor = false,
@@ -5232,7 +5232,7 @@ local function _iife_spy()
 		Size = UDim2.new(0.5, -20, 0, 16),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Text = "📤  Server: 0",
+		Text = "↗  Server: 0",
 		TextColor3 = Theme.Accent,
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -5244,7 +5244,7 @@ local function _iife_spy()
 		Size = UDim2.new(0.5, -20, 0, 16),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Text = "📥  Client: 0",
+		Text = "↙  Client: 0",
 		TextColor3 = Theme.Success,
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Right,
@@ -5283,7 +5283,7 @@ local function _iife_spy()
 		Size = UDim2.fromOffset(160, 32),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Text = "📡  Logs em tempo real",
+		Text = "↗  Logs em tempo real",
 		TextColor3 = Theme.Text,
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -5306,13 +5306,13 @@ local function _iife_spy()
 		while screenGui.Parent do
 			if Flags.RemoteSpy then
 				Tween(rsHeaderDot, 0.8, { BackgroundTransparency = 0.6 }, Enum.EasingStyle.Sine)
-				Tween(rsHeaderStatus, 0.3, { Text = "📡  Gravando..." })
+				Tween(rsHeaderStatus, 0.3, { Text = "●  Gravando..." })
 				task.wait(0.8)
 				Tween(rsHeaderDot, 0.8, { BackgroundTransparency = 0 }, Enum.EasingStyle.Sine)
 				task.wait(0.8)
 			else
 				Tween(rsHeaderDot, 0.3, { BackgroundTransparency = 0.5 })
-				Tween(rsHeaderStatus, 0.3, { Text = "📡  Logs em tempo real" })
+				Tween(rsHeaderStatus, 0.3, { Text = "↗  Logs em tempo real" })
 				task.wait(1)
 			end
 		end
@@ -5360,8 +5360,8 @@ local function _iife_spy()
 
 		rsStatTotal.Text = "Total: " .. total
 		rsStatUnique.Text = "Remotes unicos: " .. uniqueCount
-		rsStatServer.Text = "📤  Server: " .. serverCount
-		rsStatClient.Text = "📥  Client: " .. clientCount
+		rsStatServer.Text = "↗  Server: " .. serverCount
+		rsStatClient.Text = "↙  Client: " .. clientCount
 	end
 
 	RemoteSpyRefreshUI = function()
@@ -5378,7 +5378,7 @@ local function _iife_spy()
 				Size = UDim2.new(1, 0, 0, 30),
 				BackgroundTransparency = 1,
 				Font = Enum.Font.GothamBlack,
-				Text = "📡",
+				Text = "↗",
 				TextColor3 = Theme.SubText,
 				TextSize = 28,
 				LayoutOrder = 1,
@@ -5530,13 +5530,13 @@ local function _iife_spy()
 			clickBtn.MouseEnter:Connect(function()
 				Tween(row, 0.1, { BackgroundTransparency = 0 })
 				Tween(rowStroke, 0.1, { Transparency = 0.35 })
-				idxLabel.Text = "📋"
+				idxLabel.Text = "≡"
 				idxLabel.TextSize = 11
 			end)
 			clickBtn.MouseLeave:Connect(function()
 				Tween(row, 0.12, { BackgroundTransparency = 0.35 })
 				Tween(rowStroke, 0.12, { Transparency = 0.85 })
-				idxLabel.Text = "#" .. i
+				idxLabel.Text = "·" .. i
 				idxLabel.TextSize = 8
 			end)
 
@@ -6867,7 +6867,7 @@ do
 		health = true,
 		distance = true,
 		tracers = false,
-		boxColor = Color3.fromRGB(255, 50, 50),
+		boxColor = Color3.fromRGB(245, 65, 75),
 		nameColor = Color3.fromRGB(255, 255, 255),
 		maxDist = 1000,
 	}
@@ -7606,6 +7606,16 @@ local function _iife_misc()
 		end
 	end
 
+	task.delay(0.5, function()
+		ScanAll()
+		task.delay(1, function()
+			AdmMon.OnUpdate()
+			if admPanel and admPanel.Visible then
+				RefreshPanel()
+			end
+		end)
+	end)
+
 	AddToggle(page, "AdmMonitor", "Monitorar ADMs", true, function(state)
 		Flags.AdmMonitor = state
 		if state then
@@ -7650,7 +7660,12 @@ local function _iife_misc()
 			return
 		end
 		ScanAll()
-		task.delay(1.5, AdmMon.OnUpdate)
+		task.delay(1.5, function()
+			AdmMon.OnUpdate()
+			if admPanel and admPanel.Visible then
+				RefreshPanel()
+			end
+		end)
 		Notify("Monitor de ADMs", "Varredura manual concluida.", "success")
 	end)
 
@@ -7753,7 +7768,7 @@ local function _iife_misc()
 		Position = UDim2.fromOffset(18, 12),
 		Size = UDim2.new(1, -36, 0, 20),
 		Font = Enum.Font.GothamBold,
-		Text = "📥 Importar perfil",
+		Text = "↙ Importar perfil",
 		TextColor3 = Theme.Text,
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
