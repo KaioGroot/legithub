@@ -266,8 +266,8 @@ Corner(bgImage, 16)
 local bgOverlay = Create("Frame", {
 	Name = "BGOverlay",
 	Size = UDim2.fromScale(1, 1),
-	BackgroundColor3 = Theme.Background,
-	BackgroundTransparency = 1,
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.35,
 	BorderSizePixel = 0,
 	ZIndex = 1,
 }, root)
