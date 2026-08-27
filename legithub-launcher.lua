@@ -1,23 +1,15 @@
 -- =====================================================
---  LegitHub Launcher v2.0
+--  LegitHub Launcher v2.1
 --
---  Este e o UNICO script que voce precisa distribuir.
---  Ele valida a key do usuario, baixa o hub do GitHub,
---  e passa o plano (free/vip) pro hub.
---
---  FLUXO:
---   1) Verifica key salva localmente
---   2) Se nao tem key → mostra tela de ativação
---   3) Se tem key → valida com Firestore REST API
---   4) Se valida → baixa/carrega hub com plano correto
---   5) Se invalida → mostra erro e opção de reativar
+--  Validação de key + carregamento do hub.
+--  Versão robusta com tratamento de erros.
 -- =====================================================
 
 local RAW_URL = "https://raw.githubusercontent.com/KaioGroot/legithub/main/legithub-v2.lua"
 local CACHE_FILE = "legithub_main.lua"
 local LICENSE_CACHE = "legithub_license.json"
 
--- Firebase Firestore REST API (sem Cloud Functions)
+-- Firebase Firestore REST API
 local FIREBASE_API_KEY = "AIzaSyAubOqbL3_pNU9F3tCDVboN_9MCwitjXCQ"
 local FIREBASE_PROJECT_ID = "legithub-20dd6"
 local FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/"
@@ -67,12 +59,12 @@ local function GetHWID()
 end
 
 -- =====================================================
---  Sistema de Key
+--  Sistema de Key (cache local)
 -- =====================================================
 
 local function LoadSavedKey()
 	local ok, data = pcall(function()
-		if isfile(LICENSE_CACHE) then
+		if isfile and isfile(LICENSE_CACHE) then
 			return HttpService:JSONDecode(readfile(LICENSE_CACHE))
 		end
 		return nil
@@ -95,103 +87,101 @@ end
 
 local function ClearSavedKey()
 	pcall(function()
-		if isfile(LICENSE_CACHE) then
+		if isfile and isfile(LICENSE_CACHE) then
 			delfile(LICENSE_CACHE)
 		end
 	end)
 end
 
 -- =====================================================
---  Parse do Firestore REST API response
--- =====================================================
-
-local function parseFirestoreDoc(json)
-	local ok, doc = pcall(function()
-		return HttpService:JSONDecode(json)
-	end)
-	if not ok or not doc then return nil end
-
-	local fields = doc.fields
-	if not fields then return nil end
-
-	local function extractValue(field)
-		if field.stringValue then return field.stringValue end
-		if field.integerValue then return tonumber(field.integerValue) end
-		if field.doubleValue then return field.doubleValue end
-		if field.booleanValue then return field.booleanValue end
-		if field.timestampValue then return field.timestampValue end
-		return nil
-	end
-
-	local result = {}
-	for key, field in pairs(fields) do
-		result[key] = extractValue(field)
-	end
-	return result
-end
-
--- =====================================================
---  Validação da key (Firestore REST API direto)
+--  Validação da key (Firestore REST API)
 -- =====================================================
 
 local function ValidateKey(key)
+	if not key or key == "" then
+		return { valid = false, error = "Key vazia" }
+	end
+
 	local hwid = GetHWID()
 	local url = FIRESTORE_URL .. key .. "?key=" .. FIREBASE_API_KEY
 
+	print("[LegitHub] Validando key: " .. key)
+
 	local response = httpGet(url)
 	if not response then
+		print("[LegitHub] Sem conexão com Firestore")
 		return { valid = false, error = "Sem conexão com o servidor" }
 	end
 
 	-- Key não existe
 	if string.find(response, "NOT_FOUND") or string.find(response, "not found") then
+		print("[LegitHub] Key não encontrada no Firestore")
 		return { valid = false, error = "Key não encontrada" }
 	end
 
 	-- Parse da resposta
-	local license = parseFirestoreDoc(response)
-	if not license then
+	local ok, doc = pcall(function()
+		return HttpService:JSONDecode(response)
+	end)
+
+	if not ok or not doc or not doc.fields then
+		print("[LegitHub] Resposta inválida do Firestore")
 		return { valid = false, error = "Resposta inválida do servidor" }
 	end
 
+	local fields = doc.fields
+
+	local function getStr(name)
+		return fields[name] and fields[name].stringValue
+	end
+
+	local status = getStr("status")
+	local plan = getStr("plan")
+	local hwidStored = getStr("hwid")
+	local expiresAt = getStr("expiresAt")
+
 	-- Verificar status
-	if license.status == "revoked" then
+	if status == "revoked" then
 		return { valid = false, error = "Key revogada" }
 	end
 
-	if license.status == "expired" then
+	if status == "expired" then
 		return { valid = false, error = "Key expirada" }
 	end
 
 	-- Verificar expiração
-	if license.expiresAt and type(license.expiresAt) == "string" then
+	if expiresAt then
 		local pattern = "(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)"
-		local y, m, d, h, min, s = string.match(license.expiresAt, pattern)
+		local y, m, d, h, min, s = string.match(expiresAt, pattern)
 		if y then
-			local expiresAtTime = os.time({
-				year = tonumber(y), month = tonumber(m), day = tonumber(d),
-				hour = tonumber(h), min = tonumber(min), sec = tonumber(s),
-			})
-			if expiresAtTime < os.time() then
+			local okT, expiresAtTime = pcall(function()
+				return os.time({
+					year = tonumber(y), month = tonumber(m), day = tonumber(d),
+					hour = tonumber(h), min = tonumber(min), sec = tonumber(s),
+				})
+			end)
+			if okT and expiresAtTime and expiresAtTime < os.time() then
 				return { valid = false, error = "Key expirada" }
 			end
 		end
 	end
 
 	-- Verificar HWID
-	if license.hwid and license.hwid ~= "" and license.hwid ~= hwid then
+	if hwidStored and hwidStored ~= "" and hwidStored ~= hwid then
 		return { valid = false, error = "Key associada a outro dispositivo" }
 	end
 
+	print("[LegitHub] Key válida! Plano: " .. tostring(plan))
+
 	return {
 		valid = true,
-		plan = license.plan or "weekly",
-		expiresAt = license.expiresAt,
+		plan = plan or "weekly",
+		expiresAt = expiresAt,
 	}
 end
 
 -- =====================================================
---  Tela de Key
+--  Tela de Key (simplificada)
 -- =====================================================
 
 local function ShowKeyScreen()
@@ -199,13 +189,17 @@ local function ShowKeyScreen()
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
 	if not playerGui then return false, "PlayerGui não encontrado" end
 
+	-- Destruir tela antiga se existir
+	local old = playerGui:FindFirstChild("LegitHubKeyScreen")
+	if old then old:Destroy() end
+
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "LegitHubKeyScreen"
 	gui.ResetOnSpawn = false
 	gui.DisplayOrder = 999999
 	gui.Parent = playerGui
 
-	-- Fundo escuro
+	-- Fundo
 	local overlay = Instance.new("Frame")
 	overlay.Size = UDim2.fromScale(1, 1)
 	overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -213,7 +207,7 @@ local function ShowKeyScreen()
 	overlay.BorderSizePixel = 0
 	overlay.Parent = gui
 
-	-- Card principal
+	-- Card
 	local card = Instance.new("Frame")
 	card.Size = UDim2.fromOffset(420, 320)
 	card.Position = UDim2.new(0.5, -210, 0.5, -160)
@@ -221,15 +215,13 @@ local function ShowKeyScreen()
 	card.BorderSizePixel = 0
 	card.Parent = gui
 
-	local cardCorner = Instance.new("UICorner")
-	cardCorner.CornerRadius = UDim.new(0, 14)
-	cardCorner.Parent = card
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 14)
 
-	local cardStroke = Instance.new("UIStroke")
-	cardStroke.Color = Color3.fromRGB(212, 175, 55)
-	cardStroke.Thickness = 1
-	cardStroke.Transparency = 0.6
-	cardStroke.Parent = card
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(212, 175, 55)
+	stroke.Thickness = 1
+	stroke.Transparency = 0.6
+	stroke.Parent = card
 
 	-- Título
 	local title = Instance.new("TextLabel")
@@ -243,7 +235,6 @@ local function ShowKeyScreen()
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Parent = card
 
-	-- Subtítulo
 	local subtitle = Instance.new("TextLabel")
 	subtitle.Size = UDim2.new(1, -40, 0, 18)
 	subtitle.Position = UDim2.fromOffset(20, 52)
@@ -255,7 +246,7 @@ local function ShowKeyScreen()
 	subtitle.TextXAlignment = Enum.TextXAlignment.Left
 	subtitle.Parent = card
 
-	-- Label key
+	-- Label
 	local keyLabel = Instance.new("TextLabel")
 	keyLabel.Size = UDim2.new(1, -40, 0, 16)
 	keyLabel.Position = UDim2.fromOffset(20, 82)
@@ -267,7 +258,7 @@ local function ShowKeyScreen()
 	keyLabel.TextXAlignment = Enum.TextXAlignment.Left
 	keyLabel.Parent = card
 
-	-- Input da key
+	-- Input
 	local inputBg = Instance.new("Frame")
 	inputBg.Size = UDim2.new(1, -40, 0, 40)
 	inputBg.Position = UDim2.fromOffset(20, 100)
@@ -275,9 +266,7 @@ local function ShowKeyScreen()
 	inputBg.BorderSizePixel = 0
 	inputBg.Parent = card
 
-	local inputCorner = Instance.new("UICorner")
-	inputCorner.CornerRadius = UDim.new(0, 8)
-	inputCorner.Parent = inputBg
+	Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 8)
 
 	local inputStroke = Instance.new("UIStroke")
 	inputStroke.Color = Color3.fromRGB(60, 55, 75)
@@ -312,9 +301,7 @@ local function ShowKeyScreen()
 	btnAtivar.AutoButtonColor = true
 	btnAtivar.Parent = card
 
-	local btnCorner = Instance.new("UICorner")
-	btnCorner.CornerRadius = UDim.new(0, 8)
-	btnCorner.Parent = btnAtivar
+	Instance.new("UICorner", btnAtivar).CornerRadius = UDim.new(0, 8)
 
 	-- Status
 	local status = Instance.new("TextLabel")
@@ -336,9 +323,7 @@ local function ShowKeyScreen()
 	buyFrame.BorderSizePixel = 0
 	buyFrame.Parent = card
 
-	local buyCorner = Instance.new("UICorner")
-	buyCorner.CornerRadius = UDim.new(0, 8)
-	buyCorner.Parent = buyFrame
+	Instance.new("UICorner", buyFrame).CornerRadius = UDim.new(0, 8)
 
 	local buyTitle = Instance.new("TextLabel")
 	buyTitle.Size = UDim2.new(1, -20, 0, 18)
@@ -373,7 +358,7 @@ local function ShowKeyScreen()
 	buyDesc.TextXAlignment = Enum.TextXAlignment.Left
 	buyDesc.Parent = buyFrame
 
-	-- Botão pular (modo grátis)
+	-- Botão grátis
 	local btnFree = Instance.new("TextButton")
 	btnFree.Size = UDim2.new(1, -40, 0, 28)
 	btnFree.Position = UDim2.fromOffset(20, 292)
@@ -384,41 +369,49 @@ local function ShowKeyScreen()
 	btnFree.Font = Enum.Font.Gotham
 	btnFree.Parent = card
 
-	-- Resultado da validação
+	-- Variáveis de controle
 	local result = nil
 	local validated = false
+	local validating = false
 
 	-- Função de validação
 	local function DoValidate(key)
+		if validating then return end
 		if not key or key == "" then
 			status.Text = "Digite uma key válida"
 			status.TextColor3 = Color3.fromRGB(255, 100, 100)
 			return
 		end
 
+		validating = true
 		btnAtivar.Text = "VALIDANDO..."
 		btnAtivar.BackgroundColor3 = Color3.fromRGB(80, 75, 95)
 		status.Text = "Conectando ao servidor..."
 		status.TextColor3 = Color3.fromRGB(160, 155, 170)
 
-		local res = ValidateKey(key)
+		-- Valida em thread separada pra não travar UI
+		task.spawn(function()
+			local res = ValidateKey(key)
 
-		if res.valid then
-			SaveKey(key, res.plan, res.expiresAt)
-			status.Text = "✓ Key ativada! Plano: " .. string.upper(res.plan)
-			status.TextColor3 = Color3.fromRGB(80, 220, 120)
-			result = res
-			validated = true
+			validating = false
 
-			task.delay(1.2, function()
-				gui:Destroy()
-			end)
-		else
-			status.Text = "✗ " .. (res.error or "Key inválida")
-			status.TextColor3 = Color3.fromRGB(255, 100, 100)
-			btnAtivar.Text = "ATIVAR KEY"
-			btnAtivar.BackgroundColor3 = Color3.fromRGB(212, 175, 55)
-		end
+			if res.valid then
+				SaveKey(key, res.plan, res.expiresAt)
+				status.Text = "✓ Key ativada! Plano: " .. string.upper(res.plan)
+				status.TextColor3 = Color3.fromRGB(80, 220, 120)
+				result = res
+				validated = true
+
+				task.delay(1.5, function()
+					gui:Destroy()
+				end)
+			else
+				status.Text = "✗ " .. (res.error or "Key inválida")
+				status.TextColor3 = Color3.fromRGB(255, 100, 100)
+				btnAtivar.Text = "ATIVAR KEY"
+				btnAtivar.BackgroundColor3 = Color3.fromRGB(212, 175, 55)
+			end
+		end)
 	end
 
 	-- Conexões
@@ -469,9 +462,7 @@ local function ShowFatal(msg)
 		fundo.BackgroundColor3 = Color3.fromRGB(18, 15, 19)
 		fundo.BorderSizePixel = 0
 		fundo.Parent = gui
-		local canto = Instance.new("UICorner")
-		canto.CornerRadius = UDim.new(0, 12)
-		canto.Parent = fundo
+		Instance.new("UICorner", fundo).CornerRadius = UDim.new(0, 12)
 		local texto = Instance.new("TextLabel")
 		texto.Size = UDim2.new(1, -28, 1, -24)
 		texto.Position = UDim2.fromOffset(14, 12)
@@ -491,7 +482,7 @@ end
 --  FLUXO PRINCIPAL
 -- =====================================================
 
-print("[LegitHub] Launcher v2.0 iniciado")
+print("[LegitHub] Launcher v2.1 iniciado")
 
 -- 1. Verificar key salva
 local savedKey = LoadSavedKey()
@@ -499,17 +490,24 @@ local plan = "free"
 local keyValid = false
 
 if savedKey and savedKey.key then
-	print("[LegitHub] Key salva encontrada, validando...")
-	local res = ValidateKey(savedKey.key)
-	if res.valid then
-		plan = res.plan or savedKey.plan or "free"
-		keyValid = true
-		SaveKey(savedKey.key, plan, res.expiresAt)
-		print("[LegitHub] Key válida! Plano: " .. plan)
-	else
-		print("[LegitHub] Key salva inválida: " .. tostring(res.error))
-		ClearSavedKey()
-	end
+	print("[LegitHub] Key salva encontrada: " .. savedKey.key)
+
+	-- Validar em thread separada
+	task.spawn(function()
+		local res = ValidateKey(savedKey.key)
+		if res.valid then
+			plan = res.plan or savedKey.plan or "free"
+			keyValid = true
+			SaveKey(savedKey.key, plan, res.expiresAt)
+			print("[LegitHub] Key válida! Plano: " .. plan)
+		else
+			print("[LegitHub] Key salva inválida: " .. tostring(res.error))
+			ClearSavedKey()
+		end
+	end)
+
+	-- Esperar um pouco pela validação
+	task.wait(2)
 end
 
 -- 2. Se não tem key válida → tela de ativação
@@ -530,7 +528,7 @@ _G.LegitHubPlan = plan
 print("[LegitHub] Plano final: " .. plan)
 
 -- 4. Baixar/atualizar hub
-print("[LegitHub] Verificando atualizações...")
+print("[LegitHub] Baixando hub...")
 local remote = httpGet(RAW_URL)
 
 if remote and #remote > 200 then
@@ -545,23 +543,25 @@ if remote and #remote > 200 then
 		end)
 	end
 	if localVer == remoteVer then
-		print("[LegitHub] Já está na versão mais recente (" .. tostring(remoteVer) .. ")")
+		print("[LegitHub] Versão atual (" .. tostring(remoteVer) .. ")")
 	else
-		print("[LegitHub] Atualizando: " .. tostring(localVer or "nova instalação") .. " -> " .. tostring(remoteVer))
+		print("[LegitHub] Atualizando: " .. tostring(localVer or "nova") .. " -> " .. tostring(remoteVer))
 		writefile(CACHE_FILE, remote)
 	end
 elseif isfile and isfile(CACHE_FILE) then
-	warn("[LegitHub] Sem conexão. Carregando cópia local.")
+	warn("[LegitHub] Sem conexão. Usando cópia local.")
 else
-	error("[LegitHub] Não foi possível baixar o hub e não existe cópia salva.", 0)
+	ShowFatal("Não foi possível baixar o hub e não existe cópia salva.")
+	return
 end
 
 -- 5. Carregar hub
+print("[LegitHub] Carregando hub...")
 local function runHub()
 	local code = readfile(CACHE_FILE)
 	local loader, err = loadstring(code)
 	if not loader and remote and #remote > 200 then
-		warn("[LegitHub] Cópia corrompida, baixando novamente...")
+		warn("[LegitHub] Cópina corrompida, baixando novamente...")
 		writefile(CACHE_FILE, remote)
 		loader, err = loadstring(remote)
 	end
