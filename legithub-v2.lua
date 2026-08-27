@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v5.3-MJ"
+local VERSION = "v5.4-LICENSE"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
@@ -923,6 +923,27 @@ end
 
 for i, tabName in ipairs({ "Player", "Visuals", "Mundo", "Spy", "Farm", "BloxAim", "Misc" }) do
 	MakePage(tabName, i)
+end
+
+-- ============ Sistema de Planos (VIP/Free) ============
+local CURRENT_PLAN = _G.LegitHubPlan or "free"
+
+local function IsVIP()
+	return CURRENT_PLAN == "weekly" or CURRENT_PLAN == "monthly" or CURRENT_PLAN == "annual" or CURRENT_PLAN == "premium"
+end
+
+local function IsPremium()
+	return CURRENT_PLAN == "premium"
+end
+
+local function ShowVIPBanner(page, featureName)
+	Paragraph(page, "🔒 Recurso VIP",
+		featureName .. " requer um plano VIP. Acesse discord.gg/SEU_SERVER para assinar.\n\nPlanos: Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90")
+end
+
+local function ShowPremiumBanner(page, featureName)
+	Paragraph(page, "💎 Recurso Premium",
+		featureName .. " requer plano Premium (Anual). Acesse discord.gg/SEU_SERVER para assinar.")
 end
 
 -- ============ Busca de configuracoes ============
@@ -5166,6 +5187,11 @@ _iife_mundo()
 local function _iife_spy()
 	local page = Pages["Spy"]
 
+	if not IsVIP() then
+		ShowVIPBanner(page, "Remote Spy")
+		return
+	end
+
 	local rsSupported = hookmetamethod ~= nil
 	Flags.RemoteSpyAutoScroll = true
 	Flags.RemoteSpyFilter = ""
@@ -6523,6 +6549,11 @@ do
 	local function _iife_farm()
 		local page = Pages["Farm"]
 
+		if not IsVIP() then
+			ShowVIPBanner(page, "Auto-Farm")
+			return
+		end
+
 		Paragraph(page, "Farm " .. currentGameIcon .. " " .. currentGameName,
 			"Auto-farm inteligente que detecta o jogo atual. O sistema procura moedas, itens, NPCs e coleta automaticamente usando movimentacao segura do personagem.")
 
@@ -7330,6 +7361,11 @@ do
 	local function _iife_bloxaim()
 		local page = Pages["BloxAim"]
 
+		if not IsVIP() then
+			ShowVIPBanner(page, "BloxAim Pro (Aimbot + ESP)")
+			return
+		end
+
 		Paragraph(page, "\xF0\x9F\x8E\xAF BloxAim Pro",
 			"aimbot + ESP pro BloxStrike (PlaceId: 114234929420007). Funciona em qualquer jogo.")
 
@@ -7439,6 +7475,20 @@ local function _iife_misc()
 		else
 			Notify("Erro", "setclipboard nao disponivel neste executor.", "danger")
 		end
+	end)
+
+	SectionLabel(page, "Plano")
+
+	local planIcon = IsVIP() and "✦" or "○"
+	local planText = IsVIP() and string.upper(CURRENT_PLAN) or "FREE"
+
+	Paragraph(page, planIcon .. " Plano Atual: " .. planText,
+		IsVIP()
+			and "Seu plano VIP esta ativo. Acesso completo a todas as funcionalidades premium."
+			or "Modo gratuito. Para acesso completo, assine um plano VIP.")
+
+	AddButton(page, "Ver planos de assinatura", nil, function()
+		Notify("Planos", "Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90\nAcesse discord.gg/SEU_SERVER", nil)
 	end)
 
 	SectionLabel(page, "Sistema")
@@ -8216,6 +8266,21 @@ Create("TextLabel", {
 	TextSize = 11,
 	ZIndex = 62,
 }, splashPill)
+
+-- Indicador de plano
+if CURRENT_PLAN ~= "free" then
+	local planLabel = Create("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 58),
+		Size = UDim2.fromOffset(120, 18),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "✦ " .. string.upper(CURRENT_PLAN) .. " ✓",
+		TextColor3 = Theme.Accent,
+		TextSize = 10,
+		ZIndex = 61,
+	}, splash)
+end
 
 local splashBarBg = Create("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
