@@ -256,7 +256,7 @@ local bgImage = Create("ImageLabel", {
 	Size = UDim2.fromScale(1, 1),
 	BackgroundTransparency = 1,
 	Image = "rbxassetid://94583192808180",
-	ImageTransparency = 0.05,
+	ImageTransparency = 0,
 	ScaleType = Enum.ScaleType.Crop,
 	ZIndex = 0,
 }, root)
@@ -695,7 +695,7 @@ local function Ripple(button, inputPos)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(relX, relY),
 		Size = UDim2.fromOffset(0, 0),
-	BackgroundTransparency = 0.9,
+	BackgroundTransparency = 1,
 		BackgroundColor3 = Theme.Text,
 		BorderSizePixel = 0,
 		ZIndex = button.ZIndex + 2,
