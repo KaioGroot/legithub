@@ -265,7 +265,7 @@ local rootShadow = Create("ImageLabel", {
 }, root)
 
 Corner(root, 16)
-local rootStroke = Outline(root, Theme.Stroke, 0.25, 1)
+local rootStroke = Outline(root, Color3.fromRGB(255, 255, 255), 0.15, 1)
 	Create("UIGradient", {
 		Color = ColorSequence.new(Color3.fromRGB(212, 175, 55), Color3.fromRGB(192, 192, 210)),
 		Rotation = 115,
@@ -291,6 +291,18 @@ local bgOverlay = Create("Frame", {
 	ZIndex = 1,
 }, root)
 Corner(bgOverlay, 16)
+
+local grainOverlay = Create("ImageLabel", {
+	Name = "GrainOverlay",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Image = "rbxassetid://10066901910",
+	ImageTransparency = 0.88,
+	ScaleType = Enum.ScaleType.Tile,
+	TileSize = UDim2.fromOffset(128, 128),
+	ZIndex = 1,
+}, root)
+Corner(grainOverlay, 16)
 
 local function AuroraWash(name, pos, size, color, rot)
 	local wash = Create("Frame", {
@@ -637,7 +649,7 @@ local sidebar = Create("Frame", {
 	BorderSizePixel = 0,
 }, body)
 
-Outline(sidebar, Theme.Stroke, 0.5, 1)
+Outline(sidebar, Color3.fromRGB(255, 255, 255), 0.82, 1)
 
 local tabLayout = Create("UIListLayout", {
 	Padding = UDim.new(0, 4),
@@ -890,19 +902,22 @@ local function SelectTab(name)
 	if previous and Pages[previous] then
 		local oldPage = Pages[previous].Page
 		local oldName = previous
-		Tween(oldPage, 0.12, { GroupTransparency = 1 }).Completed:Once(function()
+		oldPage.GroupTransparency = 0
+		Tween(oldPage, 0.18, { GroupTransparency = 1, Position = UDim2.new(0, 0, -0.04, 0) }).Completed:Once(function()
 			if CurrentTab ~= oldName then
 				oldPage.Visible = false
+				oldPage.Position = UDim2.fromScale(0, 0)
 			end
 		end)
 	end
 
 	newPage.Page.Visible = true
 	newPage.Page.GroupTransparency = 1
+	newPage.Page.Position = UDim2.new(0, 0, 0.03, 0)
 	newPage.Scroll.Position = UDim2.fromOffset(0, 26)
 	task.defer(function()
-		Tween(newPage.Page, 0.22, { GroupTransparency = 0 })
-		Tween(newPage.Scroll, 0.34, { Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Back)
+		Tween(newPage.Page, 0.28, { GroupTransparency = 0, Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		Tween(newPage.Scroll, 0.38, { Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Back)
 	end)
 end
 
@@ -1209,6 +1224,7 @@ local function AddButton(page, text, color, callback)
 	local btn = Create("TextButton", {
 		Size = UDim2.new(1, 0, 0, 40),
 		BackgroundColor3 = Theme.Card,
+		BackgroundTransparency = 0.15,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamMedium,
 		Text = "   " .. BtnIcon(text) .. text,
@@ -1221,7 +1237,7 @@ local function AddButton(page, text, color, callback)
 	}, page.Scroll)
 	Corner(btn, 10)
 	local btnScale = Create("UIScale", { Scale = 1 }, btn)
-	local btnStroke = Outline(btn, Theme.Stroke, 0.72)
+	local btnStroke = Outline(btn, Color3.fromRGB(255, 255, 255), 0.88, 1)
 
 	local sheen = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 19),
@@ -1263,16 +1279,16 @@ local function AddButton(page, text, color, callback)
 	}, chevChip)
 
 	btn.MouseEnter:Connect(function()
-		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover, Size = UDim2.new(1, 0, 0, 43) })
-		Tween(btnStroke, 0.15, { Transparency = 0.45 })
-		Tween(chevChip, 0.18, { Position = UDim2.new(1, -6, 0.5, 0) }, Enum.EasingStyle.Quart)
-		Tween(chevron, 0.18, { TextColor3 = Theme.Text }, Enum.EasingStyle.Quart)
+		Tween(btn, 0.18, { BackgroundColor3 = Theme.CardHover, BackgroundTransparency = 0.05, Size = UDim2.new(1, 0, 0, 43) })
+		Tween(btnStroke, 0.18, { Transparency = 0.35, Color = Theme.Accent })
+		Tween(chevChip, 0.2, { Position = UDim2.new(1, -6, 0.5, 0) }, Enum.EasingStyle.Quart)
+		Tween(chevron, 0.2, { TextColor3 = Theme.Text }, Enum.EasingStyle.Quart)
 	end)
 	btn.MouseLeave:Connect(function()
-		Tween(btn, 0.18, { BackgroundColor3 = Theme.Card, Size = UDim2.new(1, 0, 0, 40) })
-		Tween(btnStroke, 0.15, { Transparency = 0.72 })
-		Tween(chevChip, 0.18, { Position = UDim2.new(1, -9, 0.5, 0) }, Enum.EasingStyle.Quart)
-		Tween(chevron, 0.18, { TextColor3 = Theme.SubText }, Enum.EasingStyle.Quart)
+		Tween(btn, 0.22, { BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.15, Size = UDim2.new(1, 0, 0, 40) })
+		Tween(btnStroke, 0.2, { Transparency = 0.88, Color = Color3.fromRGB(255, 255, 255) })
+		Tween(chevChip, 0.2, { Position = UDim2.new(1, -9, 0.5, 0) }, Enum.EasingStyle.Quart)
+		Tween(chevron, 0.2, { TextColor3 = Theme.SubText }, Enum.EasingStyle.Quart)
 	end)
 	btn.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1297,6 +1313,7 @@ local function AddToggle(page, name, text, default, callback)
 	local btn = Create("TextButton", {
 		Size = UDim2.new(1, 0, 0, 42),
 		BackgroundColor3 = Theme.Card,
+		BackgroundTransparency = 0.15,
 		BorderSizePixel = 0,
 		Text = "",
 		AutoButtonColor = false,
@@ -1305,7 +1322,7 @@ local function AddToggle(page, name, text, default, callback)
 	}, page.Scroll)
 	Corner(btn, 10)
 	local btnScale = Create("UIScale", { Scale = 1 }, btn)
-	local rowStroke = Outline(btn, Theme.Stroke, 0.6)
+	local rowStroke = Outline(btn, Color3.fromRGB(255, 255, 255), 0.85, 1)
 
 	Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1344,32 +1361,40 @@ local function AddToggle(page, name, text, default, callback)
 	local function Render(instant)
 		gradient.Enabled = state
 		switchBg.BackgroundColor3 = state and Theme.Accent or Theme.TrackOff
-		Tween(rowStroke, 0.22, {
-			Color = state and Theme.Accent or Theme.Stroke,
-			Transparency = state and 0.4 or 0.6,
+		Tween(rowStroke, 0.28, {
+			Color = state and Theme.Accent or Color3.fromRGB(255, 255, 255),
+			Transparency = state and 0.3 or 0.85,
 		})
-		Tween(switchRing, 0.22, { Transparency = state and 0.2 or 0.55 })
+		Tween(switchRing, 0.28, { Transparency = state and 0.15 or 0.55 })
 		local goal = { Position = state and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0) }
 		if instant then
 			dot.Position = goal.Position
 			dot.BackgroundColor3 = state and Color3.new(1, 1, 1) or Theme.SubText
 		else
 			dot.BackgroundColor3 = state and Color3.new(1, 1, 1) or Theme.SubText
-			dot.Size = UDim2.fromOffset(21, 21)
-			Tween(dot, 0.24, goal, Enum.EasingStyle.Back)
-			task.delay(0.13, function()
+			dot.Size = UDim2.fromOffset(22, 22)
+			Tween(dot, 0.28, goal, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+			task.delay(0.12, function()
 				if dot.Parent then
-					Tween(dot, 0.18, { Size = UDim2.fromOffset(18, 18) }, Enum.EasingStyle.Quart)
+					Tween(dot, 0.22, { Size = UDim2.fromOffset(18, 18) }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+				end
+			end)
+			-- Micro-overshoot for spring feel
+			task.delay(0.06, function()
+				if dot.Parent then
+					Tween(dot, 0.12, { Size = UDim2.fromOffset(20, 20) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 				end
 			end)
 		end
 	end
 
 	btn.MouseEnter:Connect(function()
-		Tween(btn, 0.15, { BackgroundColor3 = Theme.CardHover, Size = UDim2.new(1, 0, 0, 45) })
+		Tween(btn, 0.18, { BackgroundColor3 = Theme.CardHover, BackgroundTransparency = 0.05, Size = UDim2.new(1, 0, 0, 45) })
+		Tween(rowStroke, 0.18, { Transparency = 0.3, Color = Theme.Accent })
 	end)
 	btn.MouseLeave:Connect(function()
-		Tween(btn, 0.18, { BackgroundColor3 = Theme.Card, Size = UDim2.new(1, 0, 0, 42) })
+		Tween(btn, 0.22, { BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.15, Size = UDim2.new(1, 0, 0, 42) })
+		Tween(rowStroke, 0.2, { Transparency = 0.85, Color = Color3.fromRGB(255, 255, 255) })
 	end)
 
 	btn.InputBegan:Connect(function(input)
@@ -1413,11 +1438,12 @@ local function AddSlider(page, name, text, min, max, default, callback, suffix)
 	local holder = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 62),
 		BackgroundColor3 = Theme.Card,
+		BackgroundTransparency = 0.15,
 		BorderSizePixel = 0,
 		LayoutOrder = page.Add(function(o) return o end),
 	}, page.Scroll)
 	Corner(holder, 10)
-	Outline(holder, Theme.Stroke, 0.6)
+	Outline(holder, Color3.fromRGB(255, 255, 255), 0.85, 1)
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1539,12 +1565,13 @@ local function AddDropdown(page, name, text, options, default, callback)
 	local holder = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 42),
 		BackgroundColor3 = Theme.Card,
+		BackgroundTransparency = 0.15,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		LayoutOrder = page.Add(function(o) return o end),
 	}, page.Scroll)
 	Corner(holder, 10)
-	Outline(holder, Theme.Stroke, 0.6)
+	Outline(holder, Color3.fromRGB(255, 255, 255), 0.85, 1)
 
 	local btn = Create("TextButton", {
 		Size = UDim2.new(1, 0, 0, 42),
@@ -1744,11 +1771,12 @@ local function Notify(title, message, kind)
 	local toast = Create("CanvasGroup", {
 		Size = UDim2.new(1, 0, 0, 66),
 		BackgroundColor3 = Theme.Surface,
+		BackgroundTransparency = 0.12,
 		BorderSizePixel = 0,
 		GroupTransparency = 1,
 	}, notifyHolder)
 	Corner(toast, 10)
-	Outline(toast, Theme.Stroke, 0.4)
+	Outline(toast, Color3.fromRGB(255, 255, 255), 0.7, 1)
 
 	local bar = Create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -1803,7 +1831,7 @@ local function Notify(title, message, kind)
 
 	toast.Position = UDim2.new(1, 320, 0, 0)
 	task.defer(function()
-		Tween(toast, 0.45, { GroupTransparency = 0, Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Back)
+		Tween(toast, 0.5, { GroupTransparency = 0, Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		Tween(progressFill, 3.4, { Size = UDim2.fromScale(0, 1) }, Enum.EasingStyle.Linear)
 	end)
 
@@ -8223,27 +8251,27 @@ Create("TextLabel", {
 splashLogo.GroupTransparency = 1
 splashLogo.Size = UDim2.fromOffset(40, 40)
 task.defer(function()
-	Tween(splashLogo, 0.55, { GroupTransparency = 0 }, Enum.EasingStyle.Quart)
-	Tween(splashLogo, 0.6, { Size = UDim2.fromOffset(68, 68) }, Enum.EasingStyle.Back)
-	Tween(splashBarFill, 1.7, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	Tween(splashLogo, 0.65, { GroupTransparency = 0 }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+	Tween(splashLogo, 0.7, { Size = UDim2.fromOffset(68, 68) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	Tween(splashBarFill, 1.8, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 end)
 
 task.delay(2.1, function()
-	Tween(splash, 0.45, { GroupTransparency = 1 }).Completed:Once(function()
+	Tween(splash, 0.5, { GroupTransparency = 1 }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out).Completed:Once(function()
 		splash:Destroy()
 
 		root.Visible = true
-		Tween(uiScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
-		Tween(root, 0.4, { GroupTransparency = 0 })
+		Tween(uiScale, 0.55, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		Tween(root, 0.45, { GroupTransparency = 0 }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
 		Notify("Bem-vindo!", "Legit Hub " .. VERSION .. " carregado com sucesso.", "success")
 
 		task.delay(2.5, function()
 			if root.Visible then
-				Tween(blur, 0.4, { Size = 0 })
+				Tween(blur, 0.5, { Size = 0 }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 			end
 		end)
-		Tween(blur, 0.6, { Size = 10 })
+		Tween(blur, 0.7, { Size = 10 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	end)
 end)
 end
