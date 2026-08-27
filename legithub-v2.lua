@@ -13,11 +13,30 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v5.2-MJ"
+local VERSION = "v5.3-MJ"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
 CONFIG_FILE = "legithub_config_" .. tostring(game.PlaceId) .. ".json"
+
+-- ============ Auto-Update ============
+local AUTO_UPDATE_URL = "https://raw.githubusercontent.com/KaioGroot/legithub/main/legithub-v2.lua"
+task.spawn(function()
+	if not (httpget or game.HttpGet) then return end
+	local ok, body = pcall(function()
+		return game:HttpGet(AUTO_UPDATE_URL, true)
+	end)
+	if ok and type(body) == "string" then
+		local remoteVer = string.match(body, 'local VERSION = "(.-)"')
+		if remoteVer and remoteVer ~= VERSION then
+			print("[LegitHub] Atualizacao encontrada: " .. remoteVer .. " (voce tem " .. VERSION .. ")")
+			print("[LegitHub] Baixando e executando nova versao...")
+			task.wait(0.5)
+			pcall(function() loadstring(body)() end)
+			return
+		end
+	end
+end)
 
 local Connections = {}
 local Options = {}
@@ -8194,7 +8213,7 @@ Create("TextLabel", {
 	Size = UDim2.fromOffset(420, 16),
 	BackgroundTransparency = 1,
 	Font = Enum.Font.GothamMedium,
-	Text = "v5.2-MJ — thrilla Edition — dourado, prata e purpura profunda",
+	Text = "v5.3-MJ — thrilla Edition — dourado, prata e purpura profunda",
 	TextColor3 = Theme.SubText,
 	TextSize = 11,
 	TextTransparency = 0.25,
