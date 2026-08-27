@@ -225,6 +225,7 @@ local root = Create("CanvasGroup", {
 	Position = UDim2.fromScale(0.5, 0.5),
 	Size = UDim2.fromOffset(660, 460),
 	BackgroundColor3 = Theme.Background,
+	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	GroupTransparency = 1,
 	Active = true,
@@ -266,16 +267,11 @@ local bgOverlay = Create("Frame", {
 	Name = "BGOverlay",
 	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Theme.Background,
-	BackgroundTransparency = 0.55,
+	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ZIndex = 1,
 }, root)
 Corner(bgOverlay, 16)
-
-	Create("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(20, 18, 30), Color3.fromRGB(38, 34, 52)),
-		Rotation = 90,
-	}, root)
 
 local function AuroraWash(name, pos, size, color, rot)
 	local wash = Create("Frame", {
