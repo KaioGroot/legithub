@@ -34,7 +34,11 @@ Fases executadas em ordem; cada uma termina com release no GitHub
 - [ ] Hitbox/Reach server-side automatico (sem companion manual)
 
 ## 🌾 FASE 3 — Farm em escala
-- [ ] Farm generico universal (auto-click/auto-collect/auto-quest detector)
+- [x] Farm generico universal AFK (auto-click + auto-collect + combate + anti-stuck)
+  - [x] Coleta de itens soltos por palavras-chave (coin/cash/gem/orb/chest/fruit/pollen...)
+  - [x] Combate automatico (reusa filtro de inimigo do Blox Fruits)
+  - [x] Clique automatico (auto-tapper) + teleporte suave + anti-stuck
+  - [x] Integrado ao `;farm` da Command Bar e ao Modo Seguro ("Parar Todos os Farms")
 - [ ] Blade Ball, Da Hood, Jujutsu Legends, Anime Spirits / King Legacy,
       Fisch, Miner's Haven (nesta ordem)
 

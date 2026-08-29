@@ -13,7 +13,7 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v6.0-COMMAND-BAR"
+local VERSION = "v6.1-UNIVERSAL-FARM"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
 local SITE_URL = "https://landing-page-omega-sable-27.vercel.app"
 local CONFIG_FILE = "legithub_config.json"
@@ -6574,8 +6574,184 @@ do
 		end)
 	end
 
+	-- === Farm Universal (AFK — funciona em qualquer jogo) ===
+	local GEN = {
+		active = false,
+		collect = true,
+		attack = false,
+		click = true,
+		collectRange = 80,
+		attackRange = 60,
+		clickDelay = 0.12,
+		lastClick = 0,
+		busyUntil = 0,
+		lastPos = nil,
+		stuck = 0,
+	}
+
+	local GEN_KEYWORDS = {
+		"coin", "cash", "gem", "diamond", "orb", "token", "candy", "dropped",
+		"money", "fruit", "chest", "crate", "loot", "reward", "collect",
+		"star", "essence", "shard", "bubble", "pollen", "honey", "egg",
+	}
+
+	local function GENFindCollectible(maxDist)
+		local root = Root
+		if not root or not root.Parent then
+			UpdateRoot()
+			root = Root
+		end
+		if not root then return nil end
+		local pos = root.Position
+		local best, bestDist = nil, maxDist + 1
+		pcall(function()
+			local region = Region3.new(pos - Vector3.new(maxDist, maxDist, maxDist), pos + Vector3.new(maxDist, maxDist, maxDist))
+			local parts = game:GetService("Workspace"):FindPartsInRegion3WithIgnoreList(region, { Character }, 300)
+			for _, part in ipairs(parts) do
+				if not part.Anchored and part.Size.Magnitude < 40 then
+					local model = part.Parent
+					local name = string.lower(part.Name)
+					if model and model.ClassName ~= "Part" and model.ClassName ~= "MeshPart" then
+						name = name .. " " .. string.lower(model.Name)
+					end
+					local matched = false
+					for _, kw in ipairs(GEN_KEYWORDS) do
+						if name:find(kw) then matched = true break end
+					end
+					if matched then
+						local d = (part.Position - pos).Magnitude
+						if d < bestDist then best, bestDist = part, d end
+					end
+				end
+			end
+		end)
+		return best
+	end
+
+	local function GENFindMonster(maxDist)
+		local root = Root
+		if not root then return nil end
+		local pos = root.Position
+		local best, bestDist = nil, maxDist + 1
+		pcall(function()
+			local region = Region3.new(pos - Vector3.new(maxDist, maxDist, maxDist), pos + Vector3.new(maxDist, maxDist, maxDist))
+			local parts = game:GetService("Workspace"):FindPartsInRegion3WithIgnoreList(region, { Character }, 300)
+			local seen = {}
+			for _, part in ipairs(parts) do
+				local model = part.Parent
+				if model and model ~= game:GetService("Workspace") and not seen[model] then
+					seen[model] = true
+					if BFIsEnemy(model) then
+						local hum = model:FindFirstChildOfClass("Humanoid")
+						local hroot = model:FindFirstChild("HumanoidRootPart")
+						if hum and hroot and hum.Health > 0 then
+							local d = (hroot.Position - pos).Magnitude
+							if d < bestDist then best, bestDist = model, d end
+						end
+					end
+				end
+			end
+		end)
+		return best
+	end
+
+	local function GENTick()
+		local root = Root
+		if not root or not root.Parent then
+			UpdateRoot()
+			root = Root
+		end
+		if not root then return end
+		if not Humanoid or Humanoid.Health <= 0 then return end
+
+		local now = tick()
+		if now < GEN.busyUntil then return end
+
+		-- 1) Coleta: teleporta ate itens soltos
+		if GEN.collect then
+			local drop = GENFindCollectible(GEN.collectRange)
+			if drop then
+				local dist = (drop.Position - root.Position).Magnitude
+				if dist > 2.5 then
+					GEN.busyUntil = now + 0.25
+					SmoothTp(CFrame.new(drop.Position + Vector3.new(0, 1.5, 0)), 0.2)
+				end
+				return
+			end
+		end
+
+		-- 2) Combate: ataca NPCs/mobs por perto
+		if GEN.attack then
+			local mob = GENFindMonster(GEN.attackRange)
+			if mob then
+				local hroot = mob:FindFirstChild("HumanoidRootPart")
+				local mobDist = hroot and (hroot.Position - root.Position).Magnitude or math.huge
+				if mobDist > 7 then
+					GEN.busyUntil = now + 0.3
+					SmoothTp(hroot.CFrame * CFrame.new(0, 0, 3), 0.25)
+					return
+				end
+				if now - GEN.lastClick >= GEN.clickDelay then
+					GEN.lastClick = now
+					pcall(function()
+						local tool = Character and Character:FindFirstChildOfClass("Tool")
+						if tool then tool:Activate() end
+					end)
+					pcall(function() VIM:ClickButton1() end)
+				end
+				return
+			end
+		end
+
+		-- 3) AFK: clique automatico quando sem alvo
+		if GEN.click and now - GEN.lastClick >= GEN.clickDelay then
+			GEN.lastClick = now
+			pcall(function() VIM:ClickButton1() end)
+		end
+
+		-- 4) Anti-stuck seguro (destrava o personagem)
+		local p = root.Position
+		if GEN.lastPos then
+			if (p - GEN.lastPos).Magnitude < 0.5 then
+				GEN.stuck = GEN.stuck + 1
+				if GEN.stuck > 10 then
+					GEN.stuck = 0
+					pcall(function() Humanoid.Jump = true end)
+					GEN.busyUntil = tick() + 0.3
+					SmoothTp(root.CFrame + Vector3.new(math.random(-8, 8), 2, math.random(-8, 8)), 0.25)
+				end
+			else
+				GEN.stuck = 0
+			end
+		end
+		GEN.lastPos = p
+	end
+
+	local function GENLoop()
+		while GEN.active do
+			pcall(GENTick)
+			wait(0.15)
+		end
+	end
+
+	local function GENStart()
+		if GEN.active then
+			Notify("Farm Universal", "Ja esta ativo.", nil)
+			return
+		end
+		GEN.active = true
+		Notify("Farm Universal", "Ativado! Clicando, coletando e atacando no automatico.", "success")
+		spawn(GENLoop)
+	end
+
+	local function GENStop()
+		GEN.active = false
+		Notify("Farm Universal", "Parado.", nil)
+	end
+
 	-- === Stop All Farms ===
 	local function StopAllFarms()
+		GENStop()
 		pcall(BFStop)
 		pcall(PS99Stop)
 		pcall(BSSStop)
@@ -6997,17 +7173,40 @@ if hum and hum.Health > 0 then
 			end, " studs")
 
 		else
-			SectionLabel(page, "FARM GENERICO")
+			SectionLabel(page, "\xE2\x9A\xA1 FARM UNIVERSAL (AFK)")
 
 			Paragraph(page, "\xE2\x9A\xA1 Modo Generico",
-				"Nenhum jogo especializado detectado. O farm generico tenta coletar itens soltos ao redor. Para melhores resultados, use em um jogo suportado.")
+				"Farm que funciona em QUALQUER jogo: teleporta ate itens soltos (moedas, gemas, caixas, frutas...), ataca NPCs e mobs e clica automaticamente o tempo todo. So deixar de AFK. Jogos especializados continuam melhores nos mapas deles.")
 
-			local genericFarming = false
-			local genericLoop = nil
+			AddToggle(page, "GENOn", "Ativar Farm Universal (AFK)", false, function(state)
+				if state then GENStart() else GENStop() end
+			end)
 
-			AddButton(page, "\xE2\x9D\x8C Nenhum jogo suportado para farm", Color3.fromRGB(120, 120, 120), function() end)
+			AddToggle(page, "GENCollect", "Coletar itens soltos", true, function(state)
+				GEN.collect = state
+			end)
 
-			Paragraph(page, "Jogos suportados:",
+			AddToggle(page, "GENAttack", "Atacar NPCs / mobs", false, function(state)
+				GEN.attack = state
+			end)
+
+			AddToggle(page, "GENClick", "Clique automatico (auto-tapper)", true, function(state)
+				GEN.click = state
+			end)
+
+			AddSlider(page, "GENRange", "Range de Coleta", 20, 200, 80, function(v)
+				GEN.collectRange = v
+			end, " studs")
+
+			AddSlider(page, "GENAtkRange", "Range de Combate", 20, 200, 60, function(v)
+				GEN.attackRange = v
+			end, " studs")
+
+			AddSlider(page, "GENClickDelay", "Velocidade do Clique", 50, 1000, 120, function(v)
+				GEN.clickDelay = v / 1000
+			end, " ms")
+
+			Paragraph(page, "Jogos especializados:",
 				"1. Blox Fruits (auto-farm mobs + quest + frutas)\n2. Pet Simulator 99 (auto-collect moedas + diamantes)\n3. Bee Swarm Simulator (auto-collect pollen + tokens)\n4. Jailbreak (auto-collect dinheiro + roubos)")
 		end
 
@@ -8469,12 +8668,14 @@ local function _iife_cmdbar()
 	end)
 
 	-- ===== FARM / MISC =====
-	def("farm", { "farm" }, "farm [on|off]  |  auto-farm do jogo atual", function(w)
+	def("farm", { "farm" }, "farm [on|off]  |  auto-farm do jogo (universal AFK em qualquer jogo)", function(w)
 		if not VipGate() then return end
-		local opts = { "BFAutoFarm", "BSSAutoFarm", "JBAutoFarm" }
 		local chosen
-		for _, nm in ipairs(opts) do
+		for _, nm in ipairs({ "BFAutoFarm", "BSSAutoFarm", "JBAutoFarm" }) do
 			if Options[nm] then chosen = nm break end
+		end
+		if not chosen and Options.GENOn then
+			chosen = "GENOn"
 		end
 		if not chosen then
 			Notify("Farm", "Nenhum farm disponivel neste jogo.", "danger")
