@@ -1,25 +1,26 @@
 -- =====================================================
---  LegitHub Launcher v2.1
+--  LegitHub Launcher v3.0
 --
---  Validação de key + carregamento do hub.
---  Versão robusta com tratamento de erros.
+--  Validação via Cloudflare Worker + hub criptografado.
+--  SEM API key do Firebase e SEM raw GitHub no client.
 -- =====================================================
 
-local RAW_URL = "https://raw.githubusercontent.com/KaioGroot/legithub/main/legithub-v2.lua"
-local CACHE_FILE = "legithub_main.lua"
+local WORKER_URL = "https://legithub-auth.pages.dev"
+local API_VALIDATE = WORKER_URL .. "/api/validate"
+local API_SCRIPT = WORKER_URL .. "/api/script"
+
+local CACHE_FILE = "legithub_hub.lua"
 local LICENSE_CACHE = "legithub_license.json"
 
--- Firebase Firestore REST API
-local FIREBASE_API_KEY = "AIzaSyAubOqbL3_pNU9F3tCDVboN_9MCwitjXCQ"
-local FIREBASE_PROJECT_ID = "legithub-20dd6"
-local FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/"
-	.. FIREBASE_PROJECT_ID
-	.. "/databases/(default)/documents/licenses/"
+-- Chave de decript (XOR). Deve bater com tools/hubcrypto.mjs
+local DECRYPT_KEY = "L3g1tH#uB|Pr0t3ct|2026|K3y_!xQ8$vNm@WzKpRcTdYfGhJkLmNpQsUtVwXyZ"
 
-_G.LegitHubUpdateURL = RAW_URL
+_G.LegitHubUpdateURL = WORKER_URL .. "/"
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+
+local VERSION = "v3.0"
 
 -- =====================================================
 --  Funções HTTP
@@ -42,6 +43,29 @@ local function httpGet(url)
 	return nil
 end
 
+local function httpGetJson(url)
+	local body = httpGet(url)
+	if not body then return nil end
+	local ok, parsed = pcall(function()
+		return HttpService:JSONDecode(body)
+	end)
+	if not ok then return nil end
+	return parsed
+end
+
+-- Tenta varias vezes (download de 350KB pode falhar)
+local function httpGetRetry(url, tries)
+	tries = tries or 3
+	for i = 1, tries do
+		local body = httpGet(url)
+		if body and #body > 100 then
+			return body
+		end
+		task.wait(0.4)
+	end
+	return nil
+end
+
 -- =====================================================
 --  HWID
 -- =====================================================
@@ -56,6 +80,59 @@ local function GetHWID()
 		hwid = "fallback_" .. tostring(tick())
 	end
 	return hwid
+end
+
+-- =====================================================
+--  Decript (base64 + XOR) — mesmo algoritmo do worker
+-- =====================================================
+
+local B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local function b64Decode(s)
+	local out = {}
+	local n = 0
+	for i = 1, #s, 4 do
+		local sa = string.sub(s, i, i)
+		local sb = string.sub(s, i + 1, i + 1)
+		local sc = string.sub(s, i + 2, i + 2)
+		local sd = string.sub(s, i + 3, i + 3)
+
+		local pa = B64_CHARS:find(sa, 1, true)
+		local pb = B64_CHARS:find(sb, 1, true)
+		local pc = (sc ~= "" and sc ~= "=") and B64_CHARS:find(sc, 1, true)
+		local pd = (sd ~= "" and sd ~= "=") and B64_CHARS:find(sd, 1, true)
+
+		local A = pa and (pa - 1) or 0
+		local Bb = pb and (pb - 1) or 0
+		local C = pc and (pc - 1) or 0
+		local D = pd and (pd - 1) or 0
+
+		local bytes = ((A << 18) | (Bb << 12) | (C << 6) | D)
+
+		n = n + 1
+		out[n] = string.char((bytes >> 16) & 0xFF)
+		if sc ~= "" then
+			n = n + 1
+			out[n] = string.char((bytes >> 8) & 0xFF)
+		end
+		if sd ~= "" then
+			n = n + 1
+			out[n] = string.char(bytes & 0xFF)
+		end
+	end
+	return table.concat(out)
+end
+
+local function decryptHub(b64)
+	local raw = b64Decode(b64)
+	local kb = {}
+	for i = 1, #DECRYPT_KEY do kb[i] = string.byte(DECRYPT_KEY, i) end
+	local kn = #DECRYPT_KEY
+	local s = {}
+	for i = 1, #raw do
+		s[i] = string.char(string.byte(raw, i) ~ kb[((i - 1) % kn) + 1])
+	end
+	return table.concat(s)
 end
 
 -- =====================================================
@@ -93,8 +170,29 @@ local function ClearSavedKey()
 	end)
 end
 
+-- Cache do script (body criptografado ou plain)
+local function SaveHubCache(body)
+	pcall(function()
+		local data = { body = body, savedAt = os.time() }
+		writefile(CACHE_FILE, HttpService:JSONEncode(data))
+	end)
+end
+
+local function LoadHubCache()
+	local ok, data = pcall(function()
+		if isfile and isfile(CACHE_FILE) then
+			return HttpService:JSONDecode(readfile(CACHE_FILE))
+		end
+		return nil
+	end)
+	if ok and data and data.body and #data.body > 100 then
+		return data.body
+	end
+	return nil
+end
+
 -- =====================================================
---  Validação da key (Firestore REST API)
+--  Validação da key (via Worker)
 -- =====================================================
 
 local function ValidateKey(key)
@@ -103,85 +201,60 @@ local function ValidateKey(key)
 	end
 
 	local hwid = GetHWID()
-	local url = FIRESTORE_URL .. key .. "?key=" .. FIREBASE_API_KEY
+	local url = API_VALIDATE .. "?key=" .. key .. "&hwid=" .. hwid
 
 	print("[LegitHub] Validando key: " .. key)
 
-	local response = httpGet(url)
-	if not response then
-		print("[LegitHub] Sem conexão com Firestore")
+	local res = httpGetJson(url)
+	if not res then
+		print("[LegitHub] Sem conexão com o servidor")
 		return { valid = false, error = "Sem conexão com o servidor" }
 	end
 
-	-- Key não existe
-	if string.find(response, "NOT_FOUND") or string.find(response, "not found") then
-		print("[LegitHub] Key não encontrada no Firestore")
-		return { valid = false, error = "Key não encontrada" }
+	if not res.valid then
+		print("[LegitHub] Key inválida: " .. tostring(res.error))
 	end
 
-	-- Parse da resposta
-	local ok, doc = pcall(function()
-		return HttpService:JSONDecode(response)
-	end)
-
-	if not ok or not doc or not doc.fields then
-		print("[LegitHub] Resposta inválida do Firestore")
-		return { valid = false, error = "Resposta inválida do servidor" }
-	end
-
-	local fields = doc.fields
-
-	local function getStr(name)
-		return fields[name] and fields[name].stringValue
-	end
-
-	local status = getStr("status")
-	local plan = getStr("plan")
-	local hwidStored = getStr("hwid")
-	local expiresAt = getStr("expiresAt")
-
-	-- Verificar status
-	if status == "revoked" then
-		return { valid = false, error = "Key revogada" }
-	end
-
-	if status == "expired" then
-		return { valid = false, error = "Key expirada" }
-	end
-
-	-- Verificar expiração
-	if expiresAt then
-		local pattern = "(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)"
-		local y, m, d, h, min, s = string.match(expiresAt, pattern)
-		if y then
-			local okT, expiresAtTime = pcall(function()
-				return os.time({
-					year = tonumber(y), month = tonumber(m), day = tonumber(d),
-					hour = tonumber(h), min = tonumber(min), sec = tonumber(s),
-				})
-			end)
-			if okT and expiresAtTime and expiresAtTime < os.time() then
-				return { valid = false, error = "Key expirada" }
-			end
-		end
-	end
-
-	-- Verificar HWID
-	if hwidStored and hwidStored ~= "" and hwidStored ~= hwid then
-		return { valid = false, error = "Key associada a outro dispositivo" }
-	end
-
-	print("[LegitHub] Key válida! Plano: " .. tostring(plan))
-
-	return {
-		valid = true,
-		plan = plan or "weekly",
-		expiresAt = expiresAt,
-	}
+	return res
 end
 
 -- =====================================================
---  Tela de Key (simplificada)
+--  Script do hub (via Worker, criptografado)
+-- =====================================================
+
+-- Retorna o codigo pronto pra loadstring
+local function FetchHubScript(key, hwid, isFree)
+	local url
+	if isFree then
+		url = API_SCRIPT .. "?mode=free"
+	else
+		url = API_SCRIPT .. "?key=" .. key .. "&hwid=" .. hwid
+	end
+
+	local body = httpGetRetry(url)
+	if not body then return nil end
+
+	local ok, res = pcall(function()
+		return HttpService:JSONDecode(body)
+	end)
+	if not ok then return nil end
+
+	if not res.valid then
+		print("[LegitHub] Script bloqueado: " .. tostring(res.error))
+		return nil
+	end
+
+	if isFree then
+		return res.script -- plain lua
+	end
+
+	local plain = decryptHub(res.script)
+	SaveHubCache(res.script)
+	return plain
+end
+
+-- =====================================================
+--  Tela de Key
 -- =====================================================
 
 local function ShowKeyScreen()
@@ -189,7 +262,6 @@ local function ShowKeyScreen()
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
 	if not playerGui then return false, "PlayerGui não encontrado" end
 
-	-- Destruir tela antiga se existir
 	local old = playerGui:FindFirstChild("LegitHubKeyScreen")
 	if old then old:Destroy() end
 
@@ -199,7 +271,6 @@ local function ShowKeyScreen()
 	gui.DisplayOrder = 999999
 	gui.Parent = playerGui
 
-	-- Fundo
 	local overlay = Instance.new("Frame")
 	overlay.Size = UDim2.fromScale(1, 1)
 	overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -207,7 +278,6 @@ local function ShowKeyScreen()
 	overlay.BorderSizePixel = 0
 	overlay.Parent = gui
 
-	-- Card
 	local card = Instance.new("Frame")
 	card.Size = UDim2.fromOffset(420, 320)
 	card.Position = UDim2.new(0.5, -210, 0.5, -160)
@@ -223,7 +293,6 @@ local function ShowKeyScreen()
 	stroke.Transparency = 0.6
 	stroke.Parent = card
 
-	-- Título
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, -40, 0, 36)
 	title.Position = UDim2.fromOffset(20, 18)
@@ -246,7 +315,6 @@ local function ShowKeyScreen()
 	subtitle.TextXAlignment = Enum.TextXAlignment.Left
 	subtitle.Parent = card
 
-	-- Label
 	local keyLabel = Instance.new("TextLabel")
 	keyLabel.Size = UDim2.new(1, -40, 0, 16)
 	keyLabel.Position = UDim2.fromOffset(20, 82)
@@ -258,7 +326,6 @@ local function ShowKeyScreen()
 	keyLabel.TextXAlignment = Enum.TextXAlignment.Left
 	keyLabel.Parent = card
 
-	-- Input
 	local inputBg = Instance.new("Frame")
 	inputBg.Size = UDim2.new(1, -40, 0, 40)
 	inputBg.Position = UDim2.fromOffset(20, 100)
@@ -288,7 +355,6 @@ local function ShowKeyScreen()
 	input.TextXAlignment = Enum.TextXAlignment.Left
 	input.Parent = inputBg
 
-	-- Botão Ativar
 	local btnAtivar = Instance.new("TextButton")
 	btnAtivar.Size = UDim2.new(1, -40, 0, 40)
 	btnAtivar.Position = UDim2.fromOffset(20, 152)
@@ -303,7 +369,6 @@ local function ShowKeyScreen()
 
 	Instance.new("UICorner", btnAtivar).CornerRadius = UDim.new(0, 8)
 
-	-- Status
 	local status = Instance.new("TextLabel")
 	status.Size = UDim2.new(1, -40, 0, 16)
 	status.Position = UDim2.fromOffset(20, 200)
@@ -315,7 +380,6 @@ local function ShowKeyScreen()
 	status.TextXAlignment = Enum.TextXAlignment.Left
 	status.Parent = card
 
-	-- Link de compra
 	local buyFrame = Instance.new("Frame")
 	buyFrame.Size = UDim2.new(1, -40, 0, 60)
 	buyFrame.Position = UDim2.fromOffset(20, 228)
@@ -358,7 +422,6 @@ local function ShowKeyScreen()
 	buyDesc.TextXAlignment = Enum.TextXAlignment.Left
 	buyDesc.Parent = buyFrame
 
-	-- Botão grátis
 	local btnFree = Instance.new("TextButton")
 	btnFree.Size = UDim2.new(1, -40, 0, 28)
 	btnFree.Position = UDim2.fromOffset(20, 292)
@@ -369,12 +432,10 @@ local function ShowKeyScreen()
 	btnFree.Font = Enum.Font.Gotham
 	btnFree.Parent = card
 
-	-- Variáveis de controle
 	local result = nil
 	local validated = false
 	local validating = false
 
-	-- Função de validação
 	local function DoValidate(key)
 		if validating then return end
 		if not key or key == "" then
@@ -389,7 +450,6 @@ local function ShowKeyScreen()
 		status.Text = "Conectando ao servidor..."
 		status.TextColor3 = Color3.fromRGB(160, 155, 170)
 
-		-- Valida em thread separada pra não travar UI
 		task.spawn(function()
 			local res = ValidateKey(key)
 
@@ -414,7 +474,6 @@ local function ShowKeyScreen()
 		end)
 	end
 
-	-- Conexões
 	btnAtivar.MouseButton1Click:Connect(function()
 		DoValidate(input.Text)
 	end)
@@ -431,7 +490,6 @@ local function ShowKeyScreen()
 		gui:Destroy()
 	end)
 
-	-- Espera até validar ou pular
 	while not validated do
 		task.wait(0.1)
 	end
@@ -482,31 +540,34 @@ end
 --  FLUXO PRINCIPAL
 -- =====================================================
 
-print("[LegitHub] Launcher v2.1 iniciado")
+print("[LegitHub] Launcher " .. VERSION .. " iniciado")
+
+local plan = "free"
+local keyValid = false
+local myKey = nil
 
 -- 1. Verificar key salva
 local savedKey = LoadSavedKey()
-local plan = "free"
-local keyValid = false
-
 if savedKey and savedKey.key then
 	print("[LegitHub] Key salva encontrada: " .. savedKey.key)
 
-	-- Validar em thread separada
 	task.spawn(function()
 		local res = ValidateKey(savedKey.key)
-		if res.valid then
+		if res and res.valid then
 			plan = res.plan or savedKey.plan or "free"
 			keyValid = true
+			myKey = savedKey.key
 			SaveKey(savedKey.key, plan, res.expiresAt)
 			print("[LegitHub] Key válida! Plano: " .. plan)
 		else
-			print("[LegitHub] Key salva inválida: " .. tostring(res.error))
-			ClearSavedKey()
+			local err = (res and res.error) or "erro de conexão"
+			print("[LegitHub] Key salva inválida: " .. tostring(err))
+			if res and not res.valid then
+				ClearSavedKey()
+			end
 		end
 	end)
 
-	-- Esperar um pouco pela validação
 	task.wait(2)
 end
 
@@ -516,6 +577,7 @@ if not keyValid then
 	local ok, res = ShowKeyScreen()
 	if ok and res then
 		plan = res.plan or "free"
+		if res.key then myKey = res.key end
 		print("[LegitHub] Plano selecionado: " .. plan)
 	else
 		plan = "free"
@@ -527,30 +589,28 @@ end
 _G.LegitHubPlan = plan
 print("[LegitHub] Plano final: " .. plan)
 
--- 4. Baixar/atualizar hub
+-- 4. Baixar hub (criptografado via worker) ou usar cache
 print("[LegitHub] Baixando hub...")
-local remote = httpGet(RAW_URL)
+local hubCode = nil
 
-if remote and #remote > 200 then
-	local remoteVer = nil
-	pcall(function()
-		remoteVer = string.match(remote, 'local VERSION = "(.-)"')
-	end)
-	local localVer = nil
-	if isfile and isfile(CACHE_FILE) then
-		pcall(function()
-			localVer = string.match(readfile(CACHE_FILE), 'local VERSION = "(.-)"')
-		end)
+if plan == "free" or not myKey then
+	if plan == "free" then
+		hubCode = FetchHubScript(nil, nil, true)
 	end
-	if localVer == remoteVer then
-		print("[LegitHub] Versão atual (" .. tostring(remoteVer) .. ")")
-	else
-		print("[LegitHub] Atualizando: " .. tostring(localVer or "nova") .. " -> " .. tostring(remoteVer))
-		writefile(CACHE_FILE, remote)
-	end
-elseif isfile and isfile(CACHE_FILE) then
-	warn("[LegitHub] Sem conexão. Usando cópia local.")
 else
+	hubCode = FetchHubScript(myKey, GetHWID(), false)
+end
+
+if not hubCode then
+	local cached = LoadHubCache()
+	if cached then
+		print("[LegitHub] Sem conexão. Usando hub em cache.")
+		local okDec, dec = pcall(decryptHub, cached)
+		hubCode = okDec and dec or nil
+	end
+end
+
+if not hubCode or #hubCode < 500 then
 	ShowFatal("Não foi possível baixar o hub e não existe cópia salva.")
 	return
 end
@@ -558,13 +618,7 @@ end
 -- 5. Carregar hub
 print("[LegitHub] Carregando hub...")
 local function runHub()
-	local code = readfile(CACHE_FILE)
-	local loader, err = loadstring(code)
-	if not loader and remote and #remote > 200 then
-		warn("[LegitHub] Cópina corrompida, baixando novamente...")
-		writefile(CACHE_FILE, remote)
-		loader, err = loadstring(remote)
-	end
+	local loader, err = loadstring(hubCode)
 	if not loader then
 		error("[LegitHub] Falha ao compilar: " .. tostring(err), 0)
 	end

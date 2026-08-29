@@ -1,15 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Licenses: leitura livre para validação, escrita restrita
-    match /licenses/{key} {
-      // Qualquer um pode ler (launcher valida key)
-      allow read: if true;
-
-      // Escrita: apenas via Firebase Console ou Admin SDK
-      // (para criar keys manualmente ou via script)
-      allow write: if request.auth != null;
+    // Toda leitura/escrita por clientes e REST sujeitos a rules e bloqueada.
+    // O acesso a collection licenses agora acontece apenas via servico
+    // (Cloudflare Worker legithub-auth / bot Discloud), que usa service
+    // account (OAuth) e ignora security rules.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
