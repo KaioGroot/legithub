@@ -20,7 +20,7 @@ _G.LegitHubUpdateURL = WORKER_URL .. "/"
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
-local VERSION = "v3.0"
+local VERSION = "v3.1"
 
 -- =====================================================
 --  Funções HTTP
@@ -84,6 +84,8 @@ end
 
 -- =====================================================
 --  Decript (base64 + XOR) — mesmo algoritmo do worker
+--  NOTA: sem operadores bitwise (<< >> & | ~) — Luau
+--  NAO suporta. Usa aritmetica pura + bit32 (que o Xeno tem).
 -- =====================================================
 
 local B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -107,17 +109,19 @@ local function b64Decode(s)
 		local C = pc and (pc - 1) or 0
 		local D = pd and (pd - 1) or 0
 
-		local bytes = ((A << 18) | (Bb << 12) | (C << 6) | D)
+		-- Recombina os 4 grupos de 6 bits em 3 bytes usando aritmetica
+		-- (equivale a A<<18 | Bb<<12 | C<<6 | D, mas sem bitwise)
+		local full = A * 262144 + Bb * 4096 + C * 64 + D
 
 		n = n + 1
-		out[n] = string.char((bytes >> 16) & 0xFF)
-		if sc ~= "" then
+		out[n] = string.char(math.floor(full / 65536) % 256)
+		if pc then
 			n = n + 1
-			out[n] = string.char((bytes >> 8) & 0xFF)
+			out[n] = string.char(math.floor(full / 256) % 256)
 		end
-		if sd ~= "" then
+		if pd then
 			n = n + 1
-			out[n] = string.char(bytes & 0xFF)
+			out[n] = string.char(full % 256)
 		end
 	end
 	return table.concat(out)
@@ -130,7 +134,7 @@ local function decryptHub(b64)
 	local kn = #DECRYPT_KEY
 	local s = {}
 	for i = 1, #raw do
-		s[i] = string.char(string.byte(raw, i) ~ kb[((i - 1) % kn) + 1])
+		s[i] = string.char(bit32.bxor(string.byte(raw, i), kb[((i - 1) % kn) + 1]))
 	end
 	return table.concat(s)
 end
