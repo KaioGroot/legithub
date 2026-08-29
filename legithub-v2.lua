@@ -13,8 +13,9 @@ if _G.LegitHub then
 	pcall(function() _G.LegitHub.Unload() end)
 end
 
-local VERSION = "v5.4-LICENSE"
+local VERSION = "v6.0-COMMAND-BAR"
 local UPDATE_URL = _G.LegitHubUpdateURL or ""
+local SITE_URL = "https://landing-page-omega-sable-27.vercel.app"
 local CONFIG_FILE = "legithub_config.json"
 local LEGACY_CONFIG_FILE = "legithub_config.json"
 CONFIG_FILE = "legithub_config_" .. tostring(game.PlaceId) .. ".json"
@@ -42,6 +43,7 @@ local Connections = {}
 local Options = {}
 local Flags = {}
 local Keybinds = {} -- [nomeDaOpcao] = nomeDoKeyCode
+Keybinds["CommandBar"] = "Backquote"
 
 local Originals = {
 	Brightness = Lighting.Brightness,
@@ -938,12 +940,12 @@ end
 
 local function ShowVIPBanner(page, featureName)
 	Paragraph(page, "🔒 Recurso VIP",
-		featureName .. " requer um plano VIP. Acesse discord.gg/SEU_SERVER para assinar.\n\nPlanos: Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90")
+		featureName .. " requer um plano VIP. Assine em: " .. SITE_URL .. "\n\nPlanos: Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90")
 end
 
 local function ShowPremiumBanner(page, featureName)
 	Paragraph(page, "💎 Recurso Premium",
-		featureName .. " requer plano Premium (Anual). Acesse discord.gg/SEU_SERVER para assinar.")
+		featureName .. " requer plano Premium (Anual). Assine em: " .. SITE_URL)
 end
 
 -- ============ Busca de configuracoes ============
@@ -1862,8 +1864,37 @@ local function Notify(title, message, kind)
 	end)
 end
 
+-- ============ Teleporte suave compartilhado ============
+local function SmoothTp(targetCF, duration)
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	duration = duration or 0.45
+	local done = pcall(function()
+		local val = Instance.new("CFrameValue")
+		val.Name = "LegitHubSmoothTp"
+		val.Value = root.CFrame
+		local conn = val:GetPropertyChangedSignal("Value"):Connect(function()
+			local c = LocalPlayer.Character
+			local r = c and c:FindFirstChild("HumanoidRootPart")
+			if r then r.CFrame = val.Value end
+		end)
+		local tw = TweenService:Create(val, TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { Value = targetCF })
+		tw.Completed:Connect(function()
+			conn:Disconnect()
+			pcall(function() val:Destroy() end)
+		end)
+		tw:Play()
+	end)
+	if not done then
+		root.CFrame = targetCF
+	end
+	return true
+end
+
 -- ============ Motor de teclas de atalho ============
 local KEYBINDABLE = {
+	{ "CommandBar", "Comandos (barra)" },
 	{ "Aimbot", "Aimbot" },
 	{ "Hitbox", "Hitbox" },
 	{ "Reach", "Alcance" },
@@ -1878,6 +1909,8 @@ local KEYBINDABLE = {
 	{ "AutoPrompt", "Interacao automatica" },
 	{ "WaypointESP", "Waypoints no mundo" },
 }
+
+local CommandBarToggle
 
 local KeybindRows = {} -- [nome] = pillLabel
 local KeycodeToName = {}
@@ -1939,6 +1972,10 @@ Connect(UserInputService.InputBegan, function(input, gameProcessed)
 	if gameProcessed then return end
 	local targetName = KeycodeToName[input.KeyCode]
 	if targetName then
+		if targetName == "CommandBar" then
+			if CommandBarToggle then CommandBarToggle() end
+			return
+		end
 		local opt = Options[targetName]
 		if opt and opt.Type == "Toggle" then
 			opt.Set(not opt.Get())
@@ -4343,7 +4380,7 @@ local function _iife_player()
 	end)
 
 	Paragraph(page, "Dica anti-falha",
-		"Se a caixa fica grande mas o dano nao registra de longe, o jogo valida distancia no servidor deles. Nesse caso ative tambem o Alcance (aba Player), que estende sua arma e costuma resolver. O modo REAL via companion funciona apenas em jogos proprios.")
+		"Se a caixa fica grande mas o dano nao registra de longe, o jogo valida distancia no servidor deles. Nesse caso ative tambem o Alcance (aba Player), que estende sua arma e costuma resolver. O modo REAL via companion (legithub-server.lua em ServerScriptService) funciona apenas em jogos proprios/Studio.")
 
 	AddToggle(page, "Reach", "Alcance da arma (estilo IY)", false, function(state)
 		Flags.Reach = state
@@ -4641,7 +4678,7 @@ local function _iife_player()
 		local mroot = mchar and mchar:FindFirstChild("HumanoidRootPart")
 
 		if troot and mroot then
-			mroot.CFrame = troot.CFrame * CFrame.new(0, 0, 3)
+			SmoothTp(troot.CFrame * CFrame.new(0, 0, 3))
 			Notify("Teleporte", "Teleportado para " .. selectedPlayer.DisplayName .. ".", "success")
 		else
 			Notify("Teleporte", "Jogador sem personagem no momento.", "danger")
@@ -5157,7 +5194,7 @@ local function _iife_mundo()
 			Notify("Waypoints", "Personagem indisponivel.", "danger")
 			return
 		end
-		root.CFrame = CFrame.new(wp.x, wp.y + 3, wp.z)
+		SmoothTp(CFrame.new(wp.x, wp.y + 3, wp.z))
 		Notify("Waypoints", "Teleportado para \"" .. wp.name .. "\".", "success")
 	end)
 
@@ -6694,7 +6731,7 @@ do
 				end
 			end
 
-			addBtn.MouseButton1Click:Connect(function()
+			local function AddCustomItem()
 				local text = customItemInput.Text
 				if text and text ~= "" then
 					local alreadyExists = false
@@ -6713,11 +6750,13 @@ do
 						Notify("Farm de Itens", "Item ja esta na lista.", nil)
 					end
 				end
-			end)
+			end
+
+			addBtn.MouseButton1Click:Connect(AddCustomItem)
 
 			customItemInput.FocusLost:Connect(function(enterPressed)
 				if enterPressed then
-					addBtn.MouseButton1Click:Connect(function() end)()
+					AddCustomItem()
 				end
 			end)
 
@@ -6805,11 +6844,11 @@ do
 						for _, kw in ipairs(island.keywords) do
 							if objName:find(string.lower(kw)) or fullName:find(string.lower(kw)) then
 								local hum = obj:FindFirstChildOfClass("Humanoid")
-								if hum and hum.Health > 0 then
-									pcall(function()
-										Root.CFrame = obj.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
-									end)
-									Notify("Teleport", "Chegou em " .. island.name .. "! (" .. island.level .. ")", "success")
+if hum and hum.Health > 0 then
+								pcall(function()
+									SmoothTp(obj.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5))
+								end)
+								Notify("Teleport", "Chegou em " .. island.name .. "! (" .. island.level .. ")", "success")
 									found = true
 									break
 								end
@@ -6826,7 +6865,7 @@ do
 							for _, kw in ipairs(island.keywords) do
 								if objName:find(string.lower(kw)) then
 									pcall(function()
-										Root.CFrame = obj.CFrame * CFrame.new(0, 5, 0)
+										SmoothTp(obj.CFrame * CFrame.new(0, 5, 0))
 									end)
 									Notify("Teleport", "Teleportado pra area de " .. island.name, "success")
 									found = true
@@ -7488,7 +7527,7 @@ local function _iife_misc()
 			or "Modo gratuito. Para acesso completo, assine um plano VIP.")
 
 	AddButton(page, "Ver planos de assinatura", nil, function()
-		Notify("Planos", "Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90\nAcesse discord.gg/SEU_SERVER", nil)
+		Notify("Planos", "Semanal R$9,90 | Mensal R$24,90 | Anual R$149,90\nAssine em: " .. SITE_URL, nil)
 	end)
 
 	SectionLabel(page, "Sistema")
@@ -8163,6 +8202,559 @@ root.Visible = false
 root.GroupTransparency = 1
 uiScale.Scale = 0.9
 
+-- ============ COMMAND BAR (estilo IY) ============
+local function _iife_cmdbar()
+	local open = false
+	local history = {}
+	local histIdx = nil
+	local CMDS = {}
+	local CAT = {}
+
+	local function def(cat, names, desc, fn)
+		local entry = { desc = desc, fn = fn }
+		for _, x in ipairs(names) do
+			CMDS[string.lower(x)] = entry
+			table.insert(CAT, { cmd = string.lower(x), desc = desc, cat = cat })
+		end
+	end
+
+	local function CurRoot()
+		local c = LocalPlayer.Character
+		return c and c:FindFirstChild("HumanoidRootPart")
+	end
+
+	local function NumArg(w, idx, minv, maxv)
+		local n = tonumber(w[idx])
+		if n == nil then return nil end
+		if minv and maxv then n = math.clamp(n, minv, maxv) end
+		return n
+	end
+
+	local function ToggleCmd(name, arg)
+		local opt = Options[name]
+		if not opt then
+			Notify("Comando", "Essa opcao nao existe neste jogo.", "danger")
+			return
+		end
+		if not arg or arg == "" then
+			opt.Set(not opt.Get())
+			return
+		end
+		local a = string.lower(arg)
+		if a == "on" or a == "1" or a == "true" or a == "ligar" or a == "sim" then
+			opt.Set(true)
+		elseif a == "off" or a == "0" or a == "false" or a == "desligar" or a == "nao" or a == "no" then
+			opt.Set(false)
+		else
+			opt.Set(not opt.Get())
+		end
+	end
+
+	local function VipGate()
+		if IsVIP() then return true end
+		Notify("VIP", "Comando exclusivo VIP. Assine em: " .. SITE_URL, "danger")
+		return false
+	end
+
+	local function FindPlayer(name)
+		if not name or name == "" then return nil end
+		local lower = string.lower(name)
+		local best, bestStarts = nil, false
+		for _, p in ipairs(Players:GetPlayers()) do
+			local nm, dn = string.lower(p.Name), string.lower(p.DisplayName or "")
+			if nm == lower or dn == lower then return p end
+			local ok1, ok2 = nm:find(lower, 1, true), dn:find(lower, 1, true)
+			local starts = ok1 == 1 or ok2 == 1
+			if (ok1 or ok2) and (not best or (starts and not bestStarts)) then
+				best, bestStarts = p, starts
+			end
+		end
+		return best
+	end
+
+	local function toggleDef(cat, names, desc, optName)
+		def(cat, names, desc, function(w)
+			ToggleCmd(optName, w[2])
+		end)
+	end
+
+	local function sliderDef(cat, names, desc, optName, minv, maxv)
+		def(cat, names, desc, function(w)
+			if not w[2] then
+				local opt = Options[optName]
+				Notify("Valor", "Atual: " .. tostring(opt and opt.Get() or "?"), nil)
+				return
+			end
+			local n = NumArg(w, 2, minv, maxv)
+			if not n then
+				Notify("Valor", "Use: ;" .. names[1] .. " <" .. minv .. "-" .. maxv .. ">", "danger")
+				return
+			end
+			local opt = Options[optName]
+			if opt then opt.Set(n, true) end
+			Notify("Valor", names[1] .. " = " .. n, "success")
+		end)
+	end
+
+	-- ===== MOVIMENTO =====
+	sliderDef("movimento", { "speed" }, "speed <1-300>  |  velocidade", "WalkSpeed", 1, 300)
+	sliderDef("movimento", { "jump", "jp" }, "jump <1-500>  |  forca do pulo", "JumpPower", 1, 500)
+	sliderDef("movimento", { "flyspeed" }, "flyspeed <10-300>  |  velocidade do voo", "FlySpeed", 10, 300)
+	toggleDef("movimento", { "fly" }, "fly [on|off]  |  ativar/desativar voo", "Fly")
+	toggleDef("movimento", { "noclip", "clip" }, "noclip [on|off]  |  atravessar paredes", "Noclip")
+	toggleDef("movimento", { "infjump", "infj", "infinitejump" }, "infjump [on|off]  |  pulo infinito", "InfiniteJump")
+	toggleDef("movimento", { "ctp", "clicktp" }, "ctp [on|off]  |  teleporte no clique", "ClickTP")
+	toggleDef("movimento", { "invis", "invisible" }, "invis [on|off]  |  invisibilidade", "Invisible")
+
+	-- ===== VISUAL =====
+	toggleDef("visual", { "esp", "esps" }, "esp [on|off]  |  ESP de jogadores", "ESP")
+	toggleDef("visual", { "fullbright", "fb" }, "fullbright [on|off]  |  iluminacao total", "Fullbright")
+	toggleDef("visual", { "nofog", "fog" }, "nofog [on|off]  |  remover neblina", "NoFog")
+	sliderDef("visual", { "fov" }, "fov <60-120>  |  campo de visao", "FOV", 60, 120)
+	sliderDef("visual", { "gravity", "grav" }, "gravity <20-400>  |  gravidade", "Gravity", 20, 400)
+	sliderDef("visual", { "time", "clock" }, "time <0-24>  |  hora do dia", "ClockTime", 0, 24)
+
+	-- ===== PVP =====
+	toggleDef("pvp", { "hitbox", "hbox" }, "hitbox [on|off]  |  hitbox dos outros", "Hitbox")
+	toggleDef("pvp", { "reach" }, "reach [on|off]  |  alcance de arma", "Reach")
+	toggleDef("pvp", { "aimbot" }, "aimbot [on|off]  |  mirar automatico", "Aimbot")
+	sliderDef("pvp", { "hitboxsize" }, "hitboxsize <2-50>  |  tamanho da hitbox", "HitboxSize", 2, 50)
+	sliderDef("pvp", { "reachsize" }, "reachsize <5-100>  |  tamanho do alcance", "ReachSize", 5, 100)
+
+	-- ===== TELEPORTE =====
+	def("teleporte", { "tp", "teleport", "goto", "ir" }, "tp <nome>  |  teleportar ate jogador", function(w)
+		if not w[2] then
+			Notify("TP", "Use: ;tp <nome do jogador>", "danger")
+			return
+		end
+		local target = FindPlayer(w[2])
+		if not target then
+			Notify("TP", "Jogador '" .. w[2] .. "' nao encontrado.", "danger")
+			return
+		end
+		local tr = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+		if not tr then
+			Notify("TP", "Jogador sem personagem no momento.", "danger")
+			return
+		end
+		SmoothTp(tr.CFrame * CFrame.new(0, 0, 3))
+		Notify("TP", "Teleportado para " .. target.DisplayName .. ".", "success")
+	end)
+
+	def("teleporte", { "tppos", "pos" }, "tppos <x y z>  |  teleportar para coordenadas", function(w)
+		local x, y, z = tonumber(w[2]), tonumber(w[3]), tonumber(w[4])
+		if not (x and y and z) then
+			Notify("TP", "Use: ;tppos 100 50 -20", "danger")
+			return
+		end
+		SmoothTp(CFrame.new(x, y, z))
+		Notify("TP", "Teleportado para (" .. x .. ", " .. y .. ", " .. z .. ").", "success")
+	end)
+
+	-- ===== WAYPOINTS =====
+	def("waypoints", { "wp", "wps", "waypoint" }, "wp save|go|list|del|clear ...  |  waypoints", function(w)
+		local sub = string.lower(w[2] or "")
+		local name = table.concat(w, " ", 3)
+		if sub == "save" or sub == "add" or sub == "set" or (sub == "" ) then
+			local root = CurRoot()
+			if not root then
+				Notify("Wp", "Personagem indisponivel.", "danger")
+				return
+			end
+			if name == "" then name = "Ponto " .. tostring(#Waypoints + 1) end
+			table.insert(Waypoints, { name = name, x = root.Position.X, y = root.Position.Y, z = root.Position.Z, pid = game.PlaceId })
+			ScheduleSave()
+			if wpUIRefresh then wpUIRefresh() end
+			RebuildWpDrawings()
+			Notify("Wp", "\"" .. name .. "\" salvo.", "success")
+		elseif sub == "go" or sub == "tp" or sub == "ir" then
+			local foundWp, best
+			for _, wp in ipairs(Waypoints) do
+				if string.lower(wp.name) == string.lower(name) then foundWp = wp break end
+				if not best and string.lower(wp.name):find(string.lower(name), 1, true) then best = wp end
+			end
+			local wp = foundWp or best
+			local root = CurRoot()
+			if wp and root then
+				SmoothTp(CFrame.new(wp.x, wp.y + 3, wp.z))
+				Notify("Wp", "Teleportado para \"" .. wp.name .. "\".", "success")
+			else
+				Notify("Wp", "Waypoint nao encontrado.", "danger")
+			end
+		elseif sub == "list" or sub == "l" then
+			local count = 0
+			for _, wp in ipairs(Waypoints) do
+				if wp.pid == game.PlaceId then
+					count += 1
+					print("[LegitHub] WP: " .. wp.name)
+				end
+			end
+			Notify("Wp", "Waypoints neste jogo: " .. count .. ". Detalhes no console (F9).", nil)
+		elseif sub == "del" or sub == "remove" then
+			for i, wp in ipairs(Waypoints) do
+				if string.lower(wp.name) == string.lower(name) then
+					table.remove(Waypoints, i)
+					ScheduleSave()
+					if wpUIRefresh then wpUIRefresh() end
+					RebuildWpDrawings()
+					Notify("Wp", "\"" .. name .. "\" removido.", "success")
+					return
+				end
+			end
+			Notify("Wp", "Waypoint nao encontrado.", "danger")
+		elseif sub == "clear" or sub == "limpar" then
+			table.clear(Waypoints)
+			ScheduleSave()
+			if wpUIRefresh then wpUIRefresh() end
+			RebuildWpDrawings()
+			Notify("Wp", "Waypoints apagados.", "success")
+		else
+			Notify("Wp", "Use: ;wp save <nome> | ;wp go <nome> | ;wp del <nome> | ;wp list | ;wp clear", nil)
+		end
+	end)
+
+	-- ===== SERVidor =====
+	def("servidor", { "rj", "rejoin", "reentrar" }, "rj  |  reentrar no servidor", function()
+		Notify("Servidor", "Reentrando no servidor...", "success")
+		TeleportService:Teleport(game.PlaceId, LocalPlayer)
+	end)
+
+	local hopping = false
+	def("servidor", { "hop", "serverhop", "dh" }, "hop  |  pular para outro servidor", function()
+		if not VipGate() then return end
+		if hopping then
+			Notify("Hop", "Ja trocando de servidor...", nil)
+			return
+		end
+		hopping = true
+		task.spawn(function()
+			local ok, body = pcall(function()
+				return game:HttpGet("https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?limit=100&excludeJoinableClusters=false", true)
+			end)
+			if not ok or type(body) ~= "string" then
+				Notify("Hop", "Falha ao buscar servidores.", "danger")
+				hopping = false
+				return
+			end
+			local okd, data = pcall(function() return HttpService:JSONDecode(body) end)
+			if not okd or not data or not data.data then
+				Notify("Hop", "Sem dados de servidores publicos.", "danger")
+				hopping = false
+				return
+			end
+			local candidates = {}
+			for _, s in ipairs(data.data) do
+				if s.playing and s.maxPlayers and s.id and s.id ~= game.JobId and s.playing < s.maxPlayers then
+					table.insert(candidates, s)
+				end
+			end
+			if #candidates == 0 then
+				Notify("Hop", "Nenhum servidor livre encontrado.", "danger")
+				hopping = false
+				return
+			end
+			local target = candidates[math.random(1, #candidates)]
+			Notify("Hop", "Entrando em " .. tostring(target.playing) .. "/" .. tostring(target.maxPlayers) .. " jogadores...", "success")
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, target.id, LocalPlayer)
+		end)
+	end)
+
+	def("servidor", { "jobid", "join" }, "jobid  |  copiar JobId deste servidor", function()
+		local okC = pcall(function() setclipboard(game.JobId) end)
+		if okC then
+			Notify("JobId", "Copiado: " .. game.JobId, "success")
+		else
+			Notify("JobId", game.JobId, nil)
+		end
+	end)
+
+	-- ===== FARM / MISC =====
+	def("farm", { "farm" }, "farm [on|off]  |  auto-farm do jogo atual", function(w)
+		if not VipGate() then return end
+		local opts = { "BFAutoFarm", "BSSAutoFarm", "JBAutoFarm" }
+		local chosen
+		for _, nm in ipairs(opts) do
+			if Options[nm] then chosen = nm break end
+		end
+		if not chosen then
+			Notify("Farm", "Nenhum farm disponivel neste jogo.", "danger")
+			return
+		end
+		ToggleCmd(chosen, w[2])
+	end)
+
+	toggleDef("misc", { "antiafk", "afk" }, "antiafk [on|off]  |  evitar expulsao por afk", "AntiAFK")
+	toggleDef("misc", { "spectate", "spec" }, "spectate [on|off]  |  espiar jogador", "SpectateSelected")
+
+	-- ===== INFORMACAO =====
+	def("info", { "status" }, "status  |  plano, versao e players", function()
+		local planName = IsVIP() and string.upper(CURRENT_PLAN) or "FREE"
+		Notify("Status", "LegitHub " .. VERSION .. " | Plano: " .. planName .. " | Players: " .. tostring(#Players:GetPlayers()), nil)
+	end)
+
+	def("info", { "cmds", "comandos", "help", "ajuda" }, "help  |  lista todos os comandos", function()
+		local seen = {}
+		print("[LegitHub] Comandos disponiveis:")
+		for _, e in ipairs(CAT) do
+			if not seen[e.cmd] then
+				seen[e.cmd] = true
+				print("  ;" .. e.cmd .. "  ->  " .. e.desc)
+			end
+		end
+		Notify("Comandos", "Lista completa no console (F9).\nEx.: ;fly  |  ;speed 150  |  ;tp kaio  |  ;hop  |  ;wp save banco", nil)
+	end)
+
+	def("info", { "site", "discord" }, "site  |  link da landing page", function()
+		setclipboard(SITE_URL)
+		Notify("Site", "Link copiado: " .. SITE_URL, "success")
+	end)
+
+	-- ===== UI da barra =====
+	local Holder = Create("CanvasGroup", {
+		Name = "LegitHubCommandBar",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 20),
+		Size = UDim2.new(0, 560, 0, 50),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 60,
+	}, screenGui)
+	Corner(Holder, 13)
+	Outline(Holder, Color3.fromRGB(255, 255, 255), 0.7, 1)
+
+	Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.new(0, 140, 0, 3),
+		BackgroundColor3 = Theme.Accent,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0,
+		ZIndex = 61,
+	}, Holder)
+
+	local prompt = Create("TextLabel", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromOffset(18, 0),
+		Size = UDim2.fromOffset(26, 26),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = ";",
+		TextColor3 = Theme.Accent,
+		TextSize = 20,
+	}, Holder)
+
+	local box = Create("TextBox", {
+		Position = UDim2.fromOffset(52, 0),
+		Size = UDim2.new(1, -170, 1, 0),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Code,
+		Text = "",
+		PlaceholderText = "digite um comando...  (;help para a lista)",
+		PlaceholderColor3 = Theme.SubText,
+		TextColor3 = Theme.Text,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ClearTextOnFocus = false,
+	}, Holder)
+
+	Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(132, 20),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		Text = "Enter executa  •  Esc fecha",
+		TextColor3 = Theme.SubText,
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	}, Holder)
+
+	local Suggest = Create("CanvasGroup", {
+		Name = "LegitHubCmdSuggest",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 76),
+		Size = UDim2.new(0, 560, 0, 0),
+		BackgroundColor3 = Theme.Background,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 59,
+	}, screenGui)
+	Corner(Suggest, 12)
+	Outline(Suggest, Theme.Stroke, 0.6, 1)
+	Create("UIListLayout", {
+		Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, Suggest)
+
+	local function ClearRows()
+		for _, c in ipairs(Suggest:GetChildren()) do
+			if c:IsA("TextButton") then c:Destroy() end
+		end
+	end
+
+	local function UpdateSuggestions(text)
+		local q = string.lower(text:gsub("^[;%/]+", ""))
+		ClearRows()
+		if q == "" then
+			Suggest.Visible = false
+			return
+		end
+		local shown = 0
+		local seenRow = {}
+		for _, e in ipairs(CAT) do
+			if e.cmd:find(q, 1, true) and not seenRow[e.cmd] then
+				seenRow[e.cmd] = true
+				local row = Create("TextButton", {
+					Size = UDim2.new(1, 0, 0, 40),
+					BackgroundColor3 = Theme.Card,
+					BackgroundTransparency = 0.2,
+					BorderSizePixel = 0,
+					Text = "",
+					AutoButtonColor = false,
+				}, Suggest)
+				Corner(row, 9)
+				Create("TextLabel", {
+					Position = UDim2.fromOffset(14, 0),
+					Size = UDim2.new(0, 150, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamBold,
+					Text = ";" .. e.cmd,
+					TextColor3 = Theme.Accent,
+					TextSize = 13,
+					TextXAlignment = Enum.TextXAlignment.Left,
+				}, row)
+				Create("TextLabel", {
+					Position = UDim2.fromOffset(170, 0),
+					Size = UDim2.new(1, -184, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.Gotham,
+					Text = e.desc,
+					TextColor3 = Theme.SubText,
+					TextSize = 11,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+					TextXAlignment = Enum.TextXAlignment.Left,
+				}, row)
+				row.MouseEnter:Connect(function()
+					Tween(row, 0.15, { BackgroundColor3 = Theme.CardHover, BackgroundTransparency = 0 })
+				end)
+				row.MouseLeave:Connect(function()
+					Tween(row, 0.18, { BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.2 })
+				end)
+				local quick = ";" .. e.cmd
+				row.MouseButton1Click:Connect(function()
+					DoRun(quick)
+				end)
+				shown += 1
+				if shown >= 7 then break end
+			end
+		end
+		Suggest.Size = UDim2.new(0, 560, 0, shown * 44 + 6)
+		Suggest.Visible = shown > 0
+	end
+
+	local function Run(line)
+		if line == "" then return end
+		local words = {}
+		for w in string.gmatch(line, "%S+") do
+			table.insert(words, w)
+		end
+		local rawName = string.lower(words[1] or ""):gsub("^[;%/]+", "")
+		local entry = CMDS[rawName]
+		if not entry then
+			Notify("Comando", "Comando desconhecido: '" .. (words[1] or "") .. "'. Digite ;help.", "danger")
+			return
+		end
+		entry.fn(words)
+	end
+
+	local function DoRun(raw)
+		local line = raw:gsub("^[;%/]+", "")
+		if line == "" then return end
+		table.insert(history, line)
+		histIdx = nil
+		Run(line)
+	end
+
+	local function CloseBar()
+		open = false
+		Holder.Visible = false
+		Suggest.Visible = false
+		box.Text = ""
+	end
+
+	local function OpenBar(prefill)
+		open = true
+		Holder.Visible = true
+		box.Text = prefill or ""
+		box:CaptureFocus()
+		UpdateSuggestions(box.Text)
+	end
+
+	CommandBarToggle = function()
+		if open then
+			CloseBar()
+		else
+			OpenBar("")
+		end
+	end
+
+	Connect(UserInputService.InputBegan, function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+		if CaptureTarget then return end
+		local focused = UserInputService:GetFocusedTextBox()
+		if open then
+			return
+		end
+		if focused then return end
+		if input.KeyCode == Enum.KeyCode.Semicolon then
+			OpenBar(";")
+		elseif input.KeyCode == Enum.KeyCode.Slash then
+			OpenBar("/")
+		end
+	end)
+
+	Connect(UserInputService.InputBegan, function(input, gameProcessed)
+		if not open then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+		if UserInputService:GetFocusedTextBox() ~= box then return end
+		if input.KeyCode == Enum.KeyCode.Up then
+			if not histIdx then histIdx = #history + 1 end
+			histIdx = math.max(1, histIdx - 1)
+			box.Text = history[histIdx] or ""
+		elseif input.KeyCode == Enum.KeyCode.Down then
+			if not histIdx then histIdx = #history + 1 end
+			histIdx = math.min(#history + 1, histIdx + 1)
+			box.Text = history[histIdx] or ""
+		end
+	end)
+
+	Connect(box:GetPropertyChangedSignal("Text"), function()
+		if open then UpdateSuggestions(box.Text) end
+	end)
+
+	box.FocusLost:Connect(function(enterPressed)
+		if not open then return end
+		if not enterPressed then
+			CloseBar()
+			return
+		end
+		DoRun(box.Text)
+		box.Text = ""
+		histIdx = nil
+		UpdateSuggestions("")
+		box:CaptureFocus()
+	end)
+
+	def("info", { "clear" }, "clear  |  limpar historico da barra", function()
+		table.clear(history)
+		histIdx = nil
+		Notify("Barra", "Historico limpo.", "success")
+	end)
+end
+_iife_cmdbar()
+
 -- ============ Splash screen ============
 local function _iife_splash()
 local splash = Create("CanvasGroup", {
@@ -8306,7 +8898,7 @@ Create("TextLabel", {
 	Size = UDim2.fromOffset(420, 16),
 	BackgroundTransparency = 1,
 	Font = Enum.Font.GothamMedium,
-	Text = "v5.3-MJ — thrilla Edition — dourado, prata e purpura profunda",
+	Text = VERSION .. " — Hub Universal — Command Bar, ESP, Aimbot e Farm em qualquer jogo",
 	TextColor3 = Theme.SubText,
 	TextSize = 11,
 	TextTransparency = 0.25,

@@ -1,0 +1,12 @@
+{
+  "name": "legithub-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Fermentas de validacao do LegitHub",
+  "scripts": {
+    "validate": "node validate.mjs"
+  },
+  "dependencies": {
+    "luaparse": "^0.3.1"
+  }
+}

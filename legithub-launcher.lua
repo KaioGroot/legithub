@@ -340,7 +340,7 @@ local function ShowKeyScreen()
 	buyLink.Size = UDim2.new(1, -20, 0, 18)
 	buyLink.Position = UDim2.fromOffset(10, 24)
 	buyLink.BackgroundTransparency = 1
-	buyLink.Text = "Compre em: discord.gg/SEU_SERVER"
+	buyLink.Text = "Compre em: https://landing-page-omega-sable-27.vercel.app"
 	buyLink.TextColor3 = Color3.fromRGB(212, 175, 55)
 	buyLink.TextSize = 12
 	buyLink.Font = Enum.Font.GothamBold
